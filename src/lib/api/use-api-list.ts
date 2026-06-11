@@ -1,29 +1,62 @@
 import { useQuery } from "@tanstack/react-query";
 
 /**
- * Hook wrapper that calls the API and gracefully falls back to mock data
- * when the backend is unreachable (e.g. previewing without the API running).
- * Returns `isFallback: true` when the displayed data is from the mock source.
+ * Hook wrapper for fetching lists from the API.
+ * Handles paginated responses and normalizes data structure.
  */
 export function useApiList<T>(
   key: readonly unknown[],
-  fetcher: () => Promise<T[] | { data?: T[]; items?: T[] }>,
-  fallback: T[],
+  fetcher: () => Promise<T[] | { data?: T[]; items?: T[]; success?: boolean }>,
+  fallback?: T[],
 ) {
   const query = useQuery({
     queryKey: key,
     queryFn: async () => {
       const res = await fetcher();
+      // Handle different response formats
       if (Array.isArray(res)) return res;
-      return (res?.data ?? res?.items ?? []) as T[];
+      if (res?.data && Array.isArray(res.data)) return res.data;
+      if (res?.items && Array.isArray(res.items)) return res.items;
+      return [];
     },
-    retry: 0,
+    retry: 2,
     staleTime: 30_000,
   });
 
-  const isFallback = !!query.error;
+  const isFallback = !!query.error && !query.data;
   return {
-    data: (query.data && query.data.length > 0 ? query.data : fallback) as T[],
+    data: (query.data || fallback || []) as T[],
+    isLoading: query.isLoading,
+    isFallback,
+    error: query.error as Error | null,
+    refetch: query.refetch,
+  };
+}
+
+/**
+ * Hook for single item fetching from the API
+ */
+export function useApiItem<T>(
+  key: readonly unknown[],
+  fetcher: () => Promise<T | { data?: T; success?: boolean }>,
+  fallback?: T,
+) {
+  const query = useQuery({
+    queryKey: key,
+    queryFn: async () => {
+      const res = await fetcher();
+      if (res && typeof res === "object" && "data" in res) {
+        return (res as any).data;
+      }
+      return res;
+    },
+    retry: 2,
+    staleTime: 30_000,
+  });
+
+  const isFallback = !!query.error && !query.data;
+  return {
+    data: (query.data || fallback) as T | undefined,
     isLoading: query.isLoading,
     isFallback,
     error: query.error as Error | null,

@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/stat-card";
 import { FilterBar, SelectInput } from "@/components/ui/filter-bar";
 import { DataTable, THead, TH, TR, TD, ActionButton } from "@/components/ui/data-table";
 import { ApiStatusBanner } from "@/components/ApiStatusBanner";
-import { matieres as mockMatieres, ues } from "@/lib/mock-data";
 import { useApiList } from "@/lib/api/use-api-list";
 import { matieresApi } from "@/lib/api/endpoints";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -322,8 +321,7 @@ export const Route = createFileRoute("/_app/matieres")({
 function MatieresPage() {
   const { data, isFallback, refetch } = useApiList(
     ["matieres"],
-    () => matieresApi.list?.() ?? Promise.resolve(mockMatieres),
-    mockMatieres
+    () => matieresApi.list(),
   );
 
   const qc = useQueryClient();
@@ -334,7 +332,7 @@ function MatieresPage() {
   const [deleteTarget, setDeleteTarget] = useState<Matiere | null>(null);
 
   const add = useMutation({
-    mutationFn: (payload: FormData) => matieresApi.create?.(payload) ?? Promise.resolve({ ...payload, id: Date.now() }),
+    mutationFn: (payload: FormData) => matieresApi.create(payload),
     onSuccess: () => {
       toast.success("Matière ajoutée avec succès !");
       qc.invalidateQueries({ queryKey: ["matieres"] });
@@ -346,7 +344,7 @@ function MatieresPage() {
 
   const edit = useMutation({
     mutationFn: ({ id, ...payload }: FormData & { id: Matiere["id"] }) =>
-      matieresApi.update?.(id, payload) ?? Promise.resolve({ id, ...payload }),
+      matieresApi.update(id, payload),
     onSuccess: () => {
       toast.success("Matière modifiée avec succès !");
       qc.invalidateQueries({ queryKey: ["matieres"] });
@@ -357,7 +355,7 @@ function MatieresPage() {
   });
 
   const del = useMutation({
-    mutationFn: (id: Matiere["id"]) => matieresApi.remove?.(id) ?? Promise.resolve(id),
+    mutationFn: (id: Matiere["id"]) => matieresApi.remove(id),
     onSuccess: () => {
       toast.success("Matière supprimée avec succès !");
       qc.invalidateQueries({ queryKey: ["matieres"] });

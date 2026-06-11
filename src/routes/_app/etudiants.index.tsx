@@ -7,7 +7,6 @@ import { FilterBar, SearchInput, SelectInput } from "@/components/ui/filter-bar"
 import { DataTable, THead, TH, TR, TD, Avatar, ActionButton } from "@/components/ui/data-table";
 import { StatusBadge } from "@/components/ui/badge-status";
 import { ApiStatusBanner } from "@/components/ApiStatusBanner";
-import { etudiants as mock } from "@/lib/mock-data";
 import { useApiList } from "@/lib/api/use-api-list";
 import { etudiantsApi } from "@/lib/api/endpoints";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -24,7 +23,6 @@ function EtudiantsListPage() {
   const { data, isFallback, refetch } = useApiList(
     ["etudiants", { q, status }],
     () => etudiantsApi.list({ search: q || undefined, statut: status || undefined }),
-    mock,
   );
   const qc = useQueryClient();
   const del = useMutation({

@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/stat-card";
 import { FilterBar, SelectInput } from "@/components/ui/filter-bar";
 import { DataTable, THead, TH, TR, TD, ActionButton } from "@/components/ui/data-table";
 import { ApiStatusBanner } from "@/components/ApiStatusBanner";
-import { groupes as mockGroupes, annees, filieres } from "@/lib/mock-data";
 import { useApiList } from "@/lib/api/use-api-list";
 import { groupesApi } from "@/lib/api/endpoints";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -340,8 +339,7 @@ export const Route = createFileRoute("/_app/groupes")({
 function GroupesPage() {
   const { data, isFallback, refetch } = useApiList(
     ["groupes"],
-    () => groupesApi.list?.() ?? Promise.resolve(mockGroupes),
-    mockGroupes
+    () => groupesApi.list(),
   );
 
   const qc = useQueryClient();
@@ -352,7 +350,7 @@ function GroupesPage() {
   const [deleteTarget, setDeleteTarget] = useState<Groupe | null>(null);
 
   const add = useMutation({
-    mutationFn: (payload: FormData) => groupesApi.create?.(payload) ?? Promise.resolve({ ...payload, id: Date.now() }),
+    mutationFn: (payload: FormData) => groupesApi.create(payload),
     onSuccess: () => {
       toast.success("Groupe ajouté avec succès !");
       qc.invalidateQueries({ queryKey: ["groupes"] });
@@ -364,7 +362,7 @@ function GroupesPage() {
 
   const edit = useMutation({
     mutationFn: ({ id, ...payload }: FormData & { id: Groupe["id"] }) =>
-      groupesApi.update?.(id, payload) ?? Promise.resolve({ id, ...payload }),
+      groupesApi.update(id, payload),
     onSuccess: () => {
       toast.success("Groupe modifié avec succès !");
       qc.invalidateQueries({ queryKey: ["groupes"] });
@@ -375,7 +373,7 @@ function GroupesPage() {
   });
 
   const del = useMutation({
-    mutationFn: (id: Groupe["id"]) => groupesApi.remove?.(id) ?? Promise.resolve(id),
+    mutationFn: (id: Groupe["id"]) => groupesApi.remove(id),
     onSuccess: () => {
       toast.success("Groupe supprimé avec succès !");
       qc.invalidateQueries({ queryKey: ["groupes"] });

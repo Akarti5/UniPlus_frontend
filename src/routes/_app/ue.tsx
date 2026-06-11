@@ -6,7 +6,6 @@ import { FilterBar, SelectInput } from "@/components/ui/filter-bar";
 import { DataTable, THead, TH, TR, TD, ActionButton } from "@/components/ui/data-table";
 import { StatusBadge } from "@/components/ui/badge-status";
 import { ApiStatusBanner } from "@/components/ApiStatusBanner";
-import { ues as mockUes, filieres } from "@/lib/mock-data";
 import { useApiList } from "@/lib/api/use-api-list";
 import { ueApi } from "@/lib/api/endpoints";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -358,8 +357,7 @@ export const Route = createFileRoute("/_app/ue")({
 function UePage() {
   const { data, isFallback, refetch } = useApiList(
     ["ues"],
-    () => ueApi.list?.() ?? Promise.resolve(mockUes),
-    mockUes
+    () => ueApi.list(),
   );
 
   const qc = useQueryClient();
@@ -370,7 +368,7 @@ function UePage() {
   const [deleteTarget, setDeleteTarget] = useState<Ue | null>(null);
 
   const add = useMutation({
-    mutationFn: (payload: FormData) => ueApi.create?.(payload) ?? Promise.resolve({ ...payload, id: Date.now() }),
+    mutationFn: (payload: FormData) => ueApi.create(payload),
     onSuccess: () => {
       toast.success("UE ajoutée avec succès !");
       qc.invalidateQueries({ queryKey: ["ues"] });
@@ -382,7 +380,7 @@ function UePage() {
 
   const edit = useMutation({
     mutationFn: ({ id, ...payload }: FormData & { id: Ue["id"] }) =>
-    ueApi.update?.(id, payload) ?? Promise.resolve({ id, ...payload }),
+    ueApi.update(id, payload),
     onSuccess: () => {
       toast.success("UE modifiée avec succès !");
       qc.invalidateQueries({ queryKey: ["ues"] });
@@ -393,7 +391,7 @@ function UePage() {
   });
 
   const del = useMutation({
-    mutationFn: (id: Ue["id"]) => ueApi.remove?.(id) ?? Promise.resolve(id),
+    mutationFn: (id: Ue["id"]) => ueApi.remove(id),
     onSuccess: () => {
       toast.success("UE supprimée avec succès !");
       qc.invalidateQueries({ queryKey: ["ues"] });

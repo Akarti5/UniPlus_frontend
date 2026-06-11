@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import {
   Users,
@@ -25,7 +25,10 @@ import {
 } from "recharts";
 import { StatusBadge } from "@/components/ui/badge-status";
 import { Avatar } from "@/components/ui/data-table";
-import { inscriptions, studentsByFiliere, studentsByLevel } from "@/lib/mock-data";
+import { useApiList, useApiItem } from "@/lib/api/use-api-list";
+import { etudiantsApi, anneesApi, inscriptionsApi, enseignantsApi } from "@/lib/api/endpoints";
+import { auth } from "@/lib/api/client";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export const Route = createFileRoute("/_app/dashboard")({
   head: () => ({ meta: [{ title: "Tableau de bord — UniPlus" }] }),
@@ -68,7 +71,6 @@ function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: 
   );
 }
 
-// Composant de progression circulaire (Donut) utilisé sur le côté droit
 function CircularProgress({ value }: { value: number }): React.ReactElement {
   const radius = 15.9;
   const circumference = 2 * Math.PI * radius;
@@ -99,19 +101,72 @@ function CircularProgress({ value }: { value: number }): React.ReactElement {
 }
 
 function Dashboard(): React.ReactElement {
+  const user = auth.getUser();
+  const userName = user?.nom || "Admin";
+
+  // Fetch data from API
+  const { data: students, isLoading: studentsLoading } = useApiList(
+    ["etudiants"],
+    () => etudiantsApi.list({ limit: 1000 }),
+  );
+
+  const { data: activeYear, isLoading: yearLoading } = useApiItem(
+    ["annees-scolaires", "active"],
+    () => anneesApi.active(),
+  );
+
+  const { data: teachers, isLoading: teachersLoading } = useApiList(
+    ["enseignants"],
+    () => enseignantsApi.list({ limit: 1000 }),
+  );
+
+  // Calculate statistics from API data
+  const stats = useMemo(() => {
+    const totalStudents = students.length;
+    const activeStudents = students.filter((s: any) => s.statut === "actif").length;
+    const totalTeachers = teachers.length;
+
+    return {
+      totalStudents,
+      activeStudents,
+      totalTeachers,
+      enrollment: Math.round((activeStudents / totalStudents) * 100) || 0,
+    };
+  }, [students, teachers]);
+
+  // Calculate students by level (L1-M2)
+  const studentsByLevel = useMemo(() => {
+    const levels = ["L1", "L2", "L3", "M1", "M2"];
+    return levels.map((level) => ({
+      name: level,
+      value: students.filter((s: any) => s.niveau === level).length,
+    }));
+  }, [students]);
+
+  // Mock data for students by program (from visible student data)
+  const studentsByFiliere = useMemo(() => {
+    const programs: Record<string, number> = {};
+    students.forEach((s: any) => {
+      const program = s.filiere || "Autres";
+      programs[program] = (programs[program] || 0) + 1;
+    });
+    return Object.entries(programs)
+      .map(([name, value]) => ({ name, value }))
+      .slice(0, 5);
+  }, [students]);
+
   return (
     <div className={pageClass}>
       <div className="flex lg:flex-row flex-col lg:items-stretch gap-6">
         <div className={`${shellCardClass} flex-1 overflow-hidden`}>
-          {/* Ajout de items-center pour aligner parfaitement le texte et la nouvelle photo large */}
           <div className="items-center gap-6 grid lg:grid-cols-[1fr_1.35fr] p-6 lg:p-8">
             <div className="space-y-4">
               <div className="inline-flex items-center bg-slate-50 px-3 py-1 border border-slate-200 rounded-full font-semibold text-[11px] text-slate-600">
-                Année académique active · 2025-2026
+                Année académique active · {activeYear?.label || "2025-2026"}
               </div>
 
               <div className="space-y-2">
-                <h1 className="font-bold text-slate-900 text-3xl md:text-4xl tracking-tight">Bonjour, Tsiaro 👋</h1>
+                <h1 className="font-bold text-slate-900 text-3xl md:text-4xl tracking-tight">Bonjour, {userName} 👋</h1>
                 <p className="max-w-2xl text-slate-500 text-base">Voici ce qui se passe dans votre université aujourd&apos;hui.</p>
               </div>
 
@@ -134,7 +189,6 @@ function Dashboard(): React.ReactElement {
               </div>
             </div>
 
-            {/* Restauration: grande carte photo sombre en haut à droite, image couvrante */}
             <div className="relative bg-slate-900 shadow-[0_24px_55px_-28px_rgba(2,6,23,0.6)] border border-slate-800 rounded-3xl w-full aspect-16/10 overflow-hidden">
               <img
                 src="https://images.unsplash.com/photo-1541339907198-e08756dedf3f?q=80&w=1470&auto=format&fit=crop"
@@ -153,8 +207,14 @@ function Dashboard(): React.ReactElement {
             </div>
             <div>
               <p className="text-[11px] text-slate-500">Total étudiants</p>
-              <p className="font-bold text-[22px] text-slate-900">247</p>
-              <p className="text-[11px] text-emerald-600">+12% ce mois</p>
+              {studentsLoading ? (
+                <Skeleton className="h-6 w-12 mt-1" />
+              ) : (
+                <>
+                  <p className="font-bold text-[22px] text-slate-900">{stats.totalStudents}</p>
+                  <p className="text-[11px] text-emerald-600">+12% ce mois</p>
+                </>
+              )}
             </div>
           </div>
 
@@ -164,8 +224,14 @@ function Dashboard(): React.ReactElement {
             </div>
             <div>
               <p className="text-[11px] text-slate-500">Enseignants</p>
-              <p className="font-bold text-[22px] text-slate-900">88</p>
-              <p className="text-[11px] text-slate-500">Corps pédagogique</p>
+              {teachersLoading ? (
+                <Skeleton className="h-6 w-12 mt-1" />
+              ) : (
+                <>
+                  <p className="font-bold text-[22px] text-slate-900">{stats.totalTeachers}</p>
+                  <p className="text-[11px] text-slate-500">Corps pédagogique</p>
+                </>
+              )}
             </div>
           </div>
 
@@ -175,23 +241,23 @@ function Dashboard(): React.ReactElement {
               <div className="flex gap-4 mt-2 text-xs">
                 <div>
                   <p className="text-[10px] text-slate-500">Cible</p>
-                  <p className="font-bold text-[15px] text-slate-900">270</p>
+                  <p className="font-bold text-[15px] text-slate-900">{stats.totalStudents}</p>
                 </div>
                 <div>
                   <p className="text-[10px] text-slate-500">Atteint</p>
-                  <p className="font-bold text-[15px] text-emerald-600">240</p>
+                  <p className="font-bold text-[15px] text-emerald-600">{stats.activeStudents}</p>
                 </div>
               </div>
             </div>
-            <CircularProgress value={89} />
+            <CircularProgress value={stats.enrollment} />
           </div>
         </div>
       </div>
 
       <div className="gap-3 grid sm:grid-cols-2 xl:grid-cols-4">
         {[
-          { label: "Étudiants actifs", value: "231", icon: Users },
-          { label: "Inscriptions actives", value: "240", icon: ClipboardList, sub: "+8 cette semaine" },
+          { label: "Étudiants actifs", value: stats.activeStudents, icon: Users },
+          { label: "Inscriptions actives", value: stats.activeStudents, icon: ClipboardList, sub: "En attente de confirmation" },
           { label: "Notes saisies", value: "1 248", icon: Hash },
           { label: "En attente", value: "17", icon: Clock },
         ].map(({ label, value, icon: Icon, sub }) => (
@@ -201,7 +267,7 @@ function Dashboard(): React.ReactElement {
             </div>
             <div>
               <p className="text-[11px] text-slate-500">{label}</p>
-              <p className="font-bold text-[19px] text-slate-900">{value}</p>
+              <p className="font-bold text-[19px] text-slate-900">{typeof value === 'number' ? value : value}</p>
               {sub ? <p className="text-[10px] text-emerald-600">{sub}</p> : null}
             </div>
           </div>
@@ -212,23 +278,33 @@ function Dashboard(): React.ReactElement {
         <div className={`${shellCardClass} overflow-hidden`}>
           <div className={cardHeaderClass}>
             <div>
-              <p className={sectionTitleClass}>Inscriptions récentes</p>
-              <p className={`${sectionSubtitleClass} mt-0.5`}>5 dernières inscriptions</p>
+              <p className={sectionTitleClass}>Étudiants récents</p>
+              <p className={`${sectionSubtitleClass} mt-0.5`}>5 derniers inscrits</p>
             </div>
             <button type="button" className="bg-transparent border-0 font-semibold text-[12px] text-blue-600">Voir tout</button>
           </div>
 
           <div>
-            {inscriptions.slice(0, 5).map((inscription) => (
-              <div key={inscription.id} className="flex items-center gap-3 px-5 py-3 border-slate-100 border-b last:border-b-0">
-                <Avatar name={inscription.etudiant} />
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-[13px] text-slate-900 truncate">{inscription.etudiant}</p>
-                  <p className="text-[11px] text-slate-500">{inscription.groupe}</p>
+            {studentsLoading ? (
+              <>
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div key={i} className="px-5 py-3 border-slate-100 border-b">
+                    <Skeleton className="h-4 w-3/4" />
+                  </div>
+                ))}
+              </>
+            ) : (
+              students.slice(0, 5).map((student: any) => (
+                <div key={student.id} className="flex items-center gap-3 px-5 py-3 border-slate-100 border-b last:border-b-0">
+                  <Avatar name={`${student.prenom} ${student.nom}`} />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-[13px] text-slate-900 truncate">{student.prenom} {student.nom}</p>
+                    <p className="text-[11px] text-slate-500">{student.matricule}</p>
+                  </div>
+                  <StatusBadge status={student.statut} />
                 </div>
-                <StatusBadge status={inscription.statut} />
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
 
@@ -239,24 +315,28 @@ function Dashboard(): React.ReactElement {
               <p className={`${sectionSubtitleClass} mt-0.5`}>Répartition des étudiants</p>
             </div>
             <select aria-label="Année universitaire" className={selectClass}>
-              <option>2025-2026</option>
+              <option>{activeYear?.label || "2025-2026"}</option>
             </select>
           </div>
 
           <div className="h-60">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={studentsByFiliere} barSize={18} margin={{ left: -10 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" vertical={false} />
-                <XAxis dataKey="name" tick={{ fontSize: 10, fill: "#64748B" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 10, fill: "#64748B" }} axisLine={false} tickLine={false} />
-                <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(37,99,235,0.06)" }} />
-                <Bar dataKey="value" radius={[6, 6, 0, 0]}>
-                  {studentsByFiliere.map((_, index) => (
-                    <Cell key={index} fill={index % 3 === 0 ? "#2563EB" : index % 3 === 1 ? "#3B82F6" : "#60A5FA"} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            {studentsByFiliere.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={studentsByFiliere} barSize={18} margin={{ left: -10 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" vertical={false} />
+                  <XAxis dataKey="name" tick={{ fontSize: 10, fill: "#64748B" }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 10, fill: "#64748B" }} axisLine={false} tickLine={false} />
+                  <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(37,99,235,0.06)" }} />
+                  <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                    {studentsByFiliere.map((_, index) => (
+                      <Cell key={index} fill={index % 3 === 0 ? "#2563EB" : index % 3 === 1 ? "#3B82F6" : "#60A5FA"} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex justify-center items-center h-full text-slate-500">Pas de données</div>
+            )}
           </div>
         </div>
 
@@ -287,16 +367,20 @@ function Dashboard(): React.ReactElement {
           <div className="px-5 pt-3.5 pb-4 border-slate-100 border-t">
             <p className={`${sectionSubtitleClass} mb-1`}>Répartition par niveau (L1→M2)</p>
             <div className="h-28">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={studentsByLevel} dataKey="value" nameKey="name" innerRadius={32} outerRadius={50} paddingAngle={3}>
-                    {studentsByLevel.map((_, index) => (
-                      <Cell key={index} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip content={<ChartTooltip />} />
-                </PieChart>
-              </ResponsiveContainer>
+              {studentsByLevel.some((s) => s.value > 0) ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={studentsByLevel} dataKey="value" nameKey="name" innerRadius={32} outerRadius={50} paddingAngle={3}>
+                      {studentsByLevel.map((_, index) => (
+                        <Cell key={index} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip content={<ChartTooltip />} />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex justify-center items-center h-full text-slate-500">Pas de données</div>
+              )}
             </div>
             <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1">
               {studentsByLevel.map((entry, index) => (

@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/stat-card";
 import { DataTable, THead, TH, TR, TD, ActionButton } from "@/components/ui/data-table";
 import { StatusBadge } from "@/components/ui/badge-status";
 import { ApiStatusBanner } from "@/components/ApiStatusBanner";
-import { filieres as mockFilieres } from "@/lib/mock-data";
 import { useApiList } from "@/lib/api/use-api-list";
 import { filieresApi } from "@/lib/api/endpoints";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -335,8 +334,7 @@ export const Route = createFileRoute("/_app/filieres")({
 function FilieresPage() {
   const { data, isFallback, refetch } = useApiList(
     ["filieres"],
-    () => filieresApi.list?.() ?? Promise.resolve(mockFilieres),
-    mockFilieres
+    () => filieresApi.list(),
   );
 
   const qc = useQueryClient();
@@ -347,7 +345,7 @@ function FilieresPage() {
   const [deleteTarget, setDeleteTarget] = useState<Filiere | null>(null);
 
   const add = useMutation({
-    mutationFn: (payload: FormData) => filieresApi.create?.(payload) ?? Promise.resolve({ ...payload, id: Date.now() }),
+    mutationFn: (payload: FormData) => filieresApi.create(payload),
     onSuccess: () => {
       toast.success("Filière ajoutée avec succès !");
       qc.invalidateQueries({ queryKey: ["filieres"] });
@@ -359,7 +357,7 @@ function FilieresPage() {
 
   const edit = useMutation({
     mutationFn: ({ id, ...payload }: FormData & { id: Filiere["id"] }) =>
-      filieresApi.update?.(id, payload) ?? Promise.resolve({ id, ...payload }),
+      filieresApi.update(id, payload),
     onSuccess: () => {
       toast.success("Filière modifiée avec succès !");
       qc.invalidateQueries({ queryKey: ["filieres"] });
@@ -370,7 +368,7 @@ function FilieresPage() {
   });
 
   const del = useMutation({
-    mutationFn: (id: Filiere["id"]) => filieresApi.remove?.(id) ?? Promise.resolve(id),
+    mutationFn: (id: Filiere["id"]) => filieresApi.remove(id),
     onSuccess: () => {
       toast.success("Filière supprimée avec succès !");
       qc.invalidateQueries({ queryKey: ["filieres"] });

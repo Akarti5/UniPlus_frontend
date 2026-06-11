@@ -6,9 +6,8 @@ import { FilterBar, SearchInput, SelectInput } from "@/components/ui/filter-bar"
 import { DataTable, THead, TH, TR, TD, Avatar, ActionButton } from "@/components/ui/data-table";
 import { StatusBadge } from "@/components/ui/badge-status";
 import { ApiStatusBanner } from "@/components/ApiStatusBanner";
-import { inscriptions as mockInscriptions, annees, groupes } from "@/lib/mock-data";
 import { useApiList } from "@/lib/api/use-api-list";
-import { inscriptionsApi } from "@/lib/api/endpoints";
+import { inscriptionsApi, anneesApi, groupesApi } from "@/lib/api/endpoints";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
@@ -256,11 +255,10 @@ function InscriptionsPage() {
   const [deleteTarget, setDeleteTarget] = useState<Inscription | null>(null);
   const [detailTarget, setDetailTarget] = useState<Inscription | null>(null);
 
-  const { data, isFallback, refetch } = useApiList(
-    ["inscriptions"],
-    () => inscriptionsApi.list?.() ?? Promise.resolve(mockInscriptions),
-    mockInscriptions
-  );
+  const { data, isFallback, refetch } = useApiList(["inscriptions"], () => inscriptionsApi.list?.() ?? Promise.resolve([]), []);
+
+  const { data: anneesData } = useApiList(["annees"], () => anneesApi.list?.() ?? Promise.resolve([]), []);
+  const { data: groupesData } = useApiList(["groupes"], () => groupesApi.list?.() ?? Promise.resolve([]), []);
 
   const qc = useQueryClient();
 
@@ -305,8 +303,14 @@ function InscriptionsPage() {
 
         <FilterBar>
           <SearchInput placeholder="Matricule ou nom..." value={q} onChange={setQ} />
-          <SelectInput><option>Toutes les années</option>{annees.map(a => <option key={a.id}>{a.label}</option>)}</SelectInput>
-          <SelectInput><option>Tous les groupes</option>{groupes.map(g => <option key={g.id}>{g.nom}</option>)}</SelectInput>
+          <SelectInput>
+            <option>Toutes les années</option>
+            {anneesData.map((a: any) => <option key={a.id}>{a.label}</option>)}
+          </SelectInput>
+          <SelectInput>
+            <option>Tous les groupes</option>
+            {groupesData.map((g: any) => <option key={g.id}>{g.nom}</option>)}
+          </SelectInput>
           <SelectInput value={statut} onChange={(value) => setStatut(value)}>
             <option value="">Tous statuts</option>
             <option value="actif">Actif</option>

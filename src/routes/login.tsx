@@ -15,26 +15,41 @@ function LoginPage() {
   const navigate = useNavigate();
   const [showPwd, setShowPwd] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [email, setEmail] = useState("admin@universite.dz");
-  const [password, setPassword] = useState("demo1234");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
       const res = await authApi.login({ email, password });
-      if (res?.accessToken) auth.setToken(res.accessToken);
-      if (res?.user) auth.setUser(res.user);
-      toast.success("Connexion réussie");
-      navigate({ to: "/dashboard" });
+      // Normalize response shapes: some backends return { accessToken, refreshToken, user }
+      // while others return { success: true, data: { accessToken, ... } }
+      const token = res?.accessToken ?? res?.data?.accessToken ?? res?.data?.token;
+      const refreshToken = res?.refreshToken ?? res?.data?.refreshToken;
+      const userPayload = res?.user ?? res?.data ?? null;
+      if (token) {
+        auth.setToken(token, refreshToken);
+        if (userPayload) auth.setUser(userPayload);
+        toast.success("Connexion réussie");
+        navigate({ to: "/dashboard", replace: true });
+        // fallback: if router navigation doesn't change location, force a full redirect
+        setTimeout(() => {
+          try {
+            if (typeof window !== 'undefined' && window.location.pathname !== '/dashboard') {
+              window.location.replace('/dashboard');
+            }
+          } catch (e) { /* noop */ }
+        }, 300);
+      } else {
+        toast.error("Échec de connexion — jeton manquant. Contactez l'administrateur.");
+      }
     } catch (err) {
       const msg = err instanceof ApiError
         ? `Échec de connexion (${err.status}) — ${err.message}`
-        : "API injoignable. Connexion en mode démo.";
+        : "API injoignable. Veuillez réessayer plus tard.";
       toast.error(msg);
-      auth.setToken("demo-token");
-      auth.setUser({ email, nom: "Admin", prenom: "Démo" });
-      setTimeout(() => navigate({ to: "/dashboard" }), 400);
+      console.log('[login] failed', err);
     } finally {
       setLoading(false);
     }

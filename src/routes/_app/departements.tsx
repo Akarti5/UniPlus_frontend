@@ -4,7 +4,6 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/stat-card";
 import { DataTable, THead, TH, TR, TD, ActionButton } from "@/components/ui/data-table";
 import { ApiStatusBanner } from "@/components/ApiStatusBanner";
-import { departements as mock } from "@/lib/mock-data";
 import { useApiList } from "@/lib/api/use-api-list";
 import { departementsApi } from "@/lib/api/endpoints";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -383,7 +382,6 @@ function DepartementsPage() {
   const { data, isFallback, refetch } = useApiList(
     ["departements"],
     () => departementsApi.list(),
-    mock
   );
   const qc = useQueryClient();
 

@@ -4,8 +4,10 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/stat-card";
 import { FilterBar, SearchInput } from "@/components/ui/filter-bar";
 import { DataTable, THead, TH, TR, TD, Avatar, ActionButton } from "@/components/ui/data-table";
-import { enseignants as mock } from "@/lib/mock-data";
 import { useState, useEffect } from "react";
+import { useMutation } from "@tanstack/react-query";
+import { enseignantsApi } from "@/lib/api/endpoints";
+import { useApiList } from "@/lib/api/use-api-list";
 import { toast } from "sonner";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -396,7 +398,7 @@ export const Route = createFileRoute("/_app/enseignants")({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 function EnseignantsPage() {
-  const [items, setItems] = useState<Enseignant[]>(mock as Enseignant[]);
+  const { data: items, isFallback, refetch } = useApiList(["enseignants"], () => enseignantsApi.list?.() ?? Promise.resolve([]), [] as Enseignant[]);
   const [q, setQ]         = useState("");
 
   // ── Modal state ──────────────────────────────────────────────────────────
@@ -429,27 +431,38 @@ function EnseignantsPage() {
     setFormOpen(true);
   };
 
-  const handleSave = (data: FormData & { id?: Enseignant["id"] }) => {
-    if (formMode === "add") {
-      const newItem: Enseignant = { id: Date.now(), ...data };
-      setItems((prev) => [...prev, newItem]);
-      toast.success("Enseignant ajouté avec succès !");
-    } else if (data.id !== undefined) {
-      setItems((prev) =>
-        prev.map((item) =>
-          item.id === data.id ? ({ ...item, ...data } as Enseignant) : item
-        )
-      );
-      toast.success("Enseignant modifié avec succès !");
+  const createMutation = useMutation((payload: FormData) => enseignantsApi.create?.(payload));
+  const updateMutation = useMutation(({ id, payload }: { id: number | string; payload: FormData }) => enseignantsApi.update?.(id, payload));
+  const removeMutation = useMutation((id: number | string) => enseignantsApi.remove?.(id));
+
+  const handleSave = async (data: FormData & { id?: Enseignant["id"] }) => {
+    try {
+      if (formMode === "add") {
+        await createMutation.mutateAsync(data);
+        toast.success("Enseignant ajouté avec succès !");
+      } else if (data.id !== undefined) {
+        await updateMutation.mutateAsync({ id: data.id, payload: data });
+        toast.success("Enseignant modifié avec succès !");
+      }
+      setFormOpen(false);
+      await refetch();
+    } catch (err) {
+      console.error(err);
+      toast.error("Une erreur est survenue lors de l'enregistrement.");
     }
-    setFormOpen(false);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!deleteTarget) return;
-    setItems((prev) => prev.filter((item) => item.id !== deleteTarget.id));
-    toast.success("Enseignant supprimé avec succès !");
-    setDeleteTarget(null);
+    try {
+      await removeMutation.mutateAsync(deleteTarget.id);
+      toast.success("Enseignant supprimé avec succès !");
+      setDeleteTarget(null);
+      await refetch();
+    } catch (err) {
+      console.error(err);
+      toast.error("Impossible de supprimer l'enseignant.");
+    }
   };
 
   // ─────────────────────────────────────────────────────────────────────────

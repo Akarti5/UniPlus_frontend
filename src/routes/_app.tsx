@@ -15,11 +15,22 @@ function AppLayout() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!auth.getToken()) {
-      navigate({ to: "/login" });
-    } else {
-      setReady(true);
-    }
+    const check = () => {
+      const t = auth.getToken();
+      try { console.log('[AppLayout] auth check token=', t); } catch (e) {}
+      if (!t) {
+        setReady(false);
+        navigate({ to: "/login" });
+      } else {
+        setReady(true);
+      }
+    };
+
+    check();
+
+    const onAuth = () => check();
+    window.addEventListener('uniplus:authchange', onAuth);
+    return () => window.removeEventListener('uniplus:authchange', onAuth);
   }, [navigate]);
 
   if (!ready) {

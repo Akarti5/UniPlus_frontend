@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/stat-card";
 import { DataTable, THead, TH, TR, TD, ActionButton } from "@/components/ui/data-table";
 import { StatusBadge } from "@/components/ui/badge-status";
 import { ApiStatusBanner } from "@/components/ApiStatusBanner";
-import { semestres as mockSemestres, annees } from "@/lib/mock-data";
 import { useApiList } from "@/lib/api/use-api-list";
 import { semestresApi } from "@/lib/api/endpoints";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -336,8 +335,7 @@ export const Route = createFileRoute("/_app/semestres")({
 function SemestresPage() {
   const { data, isFallback, refetch } = useApiList(
     ["semestres"],
-    () => semestresApi.list?.() ?? Promise.resolve(mockSemestres),
-    mockSemestres
+    () => semestresApi.list(),
   );
 
   const qc = useQueryClient();
@@ -348,7 +346,7 @@ function SemestresPage() {
   const [deleteTarget, setDeleteTarget] = useState<Semestre | null>(null);
 
   const add = useMutation({
-    mutationFn: (payload: FormData) => semestresApi.create?.(payload) ?? Promise.resolve({ ...payload, id: Date.now() }),
+    mutationFn: (payload: FormData) => semestresApi.create(payload),
     onSuccess: () => {
       toast.success("Semestre ajouté avec succès !");
       qc.invalidateQueries({ queryKey: ["semestres"] });
@@ -360,7 +358,7 @@ function SemestresPage() {
 
   const edit = useMutation({
     mutationFn: ({ id, ...payload }: FormData & { id: Semestre["id"] }) =>
-      semestresApi.update?.(id, payload) ?? Promise.resolve({ id, ...payload }),
+      semestresApi.update(id, payload),
     onSuccess: () => {
       toast.success("Semestre modifié avec succès !");
       qc.invalidateQueries({ queryKey: ["semestres"] });
@@ -371,7 +369,7 @@ function SemestresPage() {
   });
 
   const del = useMutation({
-    mutationFn: (id: Semestre["id"]) => semestresApi.remove?.(id) ?? Promise.resolve(id),
+    mutationFn: (id: Semestre["id"]) => semestresApi.remove(id),
     onSuccess: () => {
       toast.success("Semestre supprimé avec succès !");
       qc.invalidateQueries({ queryKey: ["semestres"] });

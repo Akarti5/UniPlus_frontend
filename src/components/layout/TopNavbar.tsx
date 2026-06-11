@@ -37,7 +37,7 @@ export function TopNavbar({ onMenuClick }: { onMenuClick: () => void }) {
   const navigate = useNavigate();
   const user = auth.getUser<{ email?: string; nom?: string; prenom?: string }>();
   const initials = `${user?.prenom?.[0] ?? "A"}${user?.nom?.[0] ?? "A"}`.toUpperCase();
-  const handleLogout = () => { auth.clear(); navigate({ to: "/login" }); };
+  const handleLogout = () => { auth.clear(); navigate({ to: "/login", replace: true }); };
 
   return (
     <header className="top-0 z-20 sticky flex items-center gap-4 bg-card/80 backdrop-blur-lg px-6 border-border border-b h-16">

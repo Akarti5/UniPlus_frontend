@@ -3,9 +3,11 @@ import { Plus, Pencil, Trash2, X, Check, AlertTriangle } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/stat-card";
 import { DataTable, THead, TH, TR, TD, ActionButton } from "@/components/ui/data-table";
-import { annees as mock } from "@/lib/mock-data";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
+import { useApiList } from "@/lib/api/use-api-list";
+import { anneesApi } from "@/lib/api/endpoints";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -358,7 +360,11 @@ export const Route = createFileRoute("/_app/annees")({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 function AnneesPage() {
-  const [items, setItems] = useState<Annee[]>(mock as Annee[]);
+  const { data: items, refetch } = useApiList(
+    ["annees-scolaires"],
+    () => anneesApi.list({ limit: 1000 }),
+  );
+  const qc = useQueryClient();
 
   // ── Modal state ──────────────────────────────────────────────────────────
   const [formOpen, setFormOpen]       = useState(false);
@@ -367,6 +373,40 @@ function AnneesPage() {
 
   // ── Delete state ─────────────────────────────────────────────────────────
   const [deleteTarget, setDeleteTarget] = useState<Annee | null>(null);
+
+  // ── Mutations ──────────────────────────────────────────────────────────
+  const create = useMutation({
+    mutationFn: (payload: FormData) => anneesApi.create(payload),
+    onSuccess: () => {
+      toast.success("Année scolaire ajoutée");
+      qc.invalidateQueries({ queryKey: ["annees-scolaires"] });
+      refetch();
+      setFormOpen(false);
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Erreur"),
+  });
+
+  const update = useMutation({
+    mutationFn: ({ id, ...payload }: FormData & { id: Annee["id"] }) => anneesApi.update(id, payload),
+    onSuccess: () => {
+      toast.success("Année scolaire modifiée");
+      qc.invalidateQueries({ queryKey: ["annees-scolaires"] });
+      refetch();
+      setFormOpen(false);
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Erreur"),
+  });
+
+  const remove = useMutation({
+    mutationFn: (id: Annee["id"]) => anneesApi.remove(id),
+    onSuccess: () => {
+      toast.success("Année scolaire supprimée");
+      qc.invalidateQueries({ queryKey: ["annees-scolaires"] });
+      refetch();
+      setDeleteTarget(null);
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Erreur"),
+  });
 
   // ── Handlers ─────────────────────────────────────────────────────────────
   const openAdd = () => {
@@ -383,25 +423,15 @@ function AnneesPage() {
 
   const handleSave = (data: FormData & { id?: Annee["id"] }) => {
     if (formMode === "add") {
-      const newItem: Annee = { id: Date.now(), ...data };
-      setItems((prev) => [...prev, newItem]);
-      toast.success("Année scolaire ajoutée avec succès !");
+      create.mutate(data);
     } else if (data.id !== undefined) {
-      setItems((prev) =>
-        prev.map((item) =>
-          item.id === data.id ? ({ ...item, ...data } as Annee) : item
-        )
-      );
-      toast.success("Année scolaire modifiée avec succès !");
+      update.mutate({ ...data, id: data.id });
     }
-    setFormOpen(false);
   };
 
   const handleDelete = () => {
     if (!deleteTarget) return;
-    setItems((prev) => prev.filter((item) => item.id !== deleteTarget.id));
-    toast.success("Année scolaire supprimée avec succès !");
-    setDeleteTarget(null);
+    remove.mutate(deleteTarget.id);
   };
 
   // ─────────────────────────────────────────────────────────────────────────
