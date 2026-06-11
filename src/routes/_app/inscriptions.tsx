@@ -116,9 +116,10 @@ interface FormModalProps {
   onSave: (data: FormData & { id?: Inscription["id"] }) => void;
   onCancel: () => void;
   isSaving: boolean;
+  groupes: any[];
 }
 
-function FormModal({ isOpen, mode, initial, onSave, onCancel, isSaving }: FormModalProps) {
+function FormModal({ isOpen, mode, initial, onSave, onCancel, isSaving, groupes }: FormModalProps) {
   const [form, setForm] = useState<FormData>({
     etudiant: "", matricule: "", groupe: "", filiere: "", niveau: "",
     statut: "actif", estRedoublant: false, dateInscription: "", paye: false,
@@ -359,7 +360,7 @@ function InscriptionsPage() {
         </DataTable>
       </div>
 
-      <FormModal isOpen={formOpen} mode={formMode} initial={formInitial} onSave={handleSave} onCancel={() => setFormOpen(false)} isSaving={add.isPending || edit.isPending} />
+      <FormModal isOpen={formOpen} mode={formMode} initial={formInitial} onSave={handleSave} onCancel={() => setFormOpen(false)} isSaving={add.isPending || edit.isPending} groupes={groupesData} />
 
       <DeleteDialog isOpen={!!deleteTarget} target={deleteTarget} onConfirm={() => deleteTarget && del.mutate(deleteTarget.id)} onCancel={() => setDeleteTarget(null)} isDeleting={del.isPending} />
 

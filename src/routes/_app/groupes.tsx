@@ -6,7 +6,7 @@ import { FilterBar, SelectInput } from "@/components/ui/filter-bar";
 import { DataTable, THead, TH, TR, TD, ActionButton } from "@/components/ui/data-table";
 import { ApiStatusBanner } from "@/components/ApiStatusBanner";
 import { useApiList } from "@/lib/api/use-api-list";
-import { groupesApi } from "@/lib/api/endpoints";
+import { groupesApi, filieresApi, anneesApi } from "@/lib/api/endpoints";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
@@ -15,14 +15,19 @@ import { useState, useEffect } from "react";
 interface Groupe {
   id: number | string;
   nom: string;
-  filiere: string;
-  niveau: string;
-  annee: string;
+  filiereId?: number | string;
+  filiere?: string | { id: number | string; nom: string; code: string };
+  niveauAnnee: string;
+  anneeScolaireId?: number | string;
+  anneeScolaire?: string | { id: number | string; label: string };
   capaciteMax: number;
   nbInscrits: number;
 }
 
-type FormData = Omit<Groupe, "id">;
+type FormData = Omit<Groupe, "id" | "filiere" | "anneeScolaire"> & {
+  filiereId: number | string;
+  anneeScolaireId: number | string;
+};
 
 // ─── CSS Animations ───────────────────────────────────────────────────────────
 const ANIMATIONS = `
@@ -91,6 +96,8 @@ interface FormModalProps {
   onSave: (data: FormData & { id?: Groupe["id"] }) => void;
   onCancel: () => void;
   isSaving: boolean;
+  filieres: any[];
+  annees: any[];
 }
 
 function FormModal({
@@ -100,32 +107,36 @@ function FormModal({
   onSave,
   onCancel,
   isSaving,
+  filieres,
+  annees,
 }: FormModalProps) {
   const [form, setForm] = useState<FormData>({
     nom: "",
-    filiere: "",
-    niveau: "",
-    annee: "",
+    filiereId: "",
+    niveauAnnee: "L1",
+    anneeScolaireId: "",
     capaciteMax: 30,
     nbInscrits: 0,
   });
 
   useEffect(() => {
     if (isOpen) {
+      const fId = initial?.filiereId ?? (typeof initial?.filiere === "object" ? initial?.filiere?.id : "");
+      const aId = initial?.anneeScolaireId ?? (typeof initial?.anneeScolaire === "object" ? initial?.anneeScolaire?.id : "");
       setForm({
-        nom: initial?.nom ?? "",
-        filiere: initial?.filiere ?? "",
-        niveau: initial?.niveau ?? "",
-        annee: initial?.annee ?? "",
-        capaciteMax: initial?.capaciteMax ?? 30,
-        nbInscrits: initial?.nbInscrits ?? 0,
+        nom:             initial?.nom             ?? "",
+        filiereId:       fId                      ?? "",
+        niveauAnnee:     initial?.niveauAnnee     ?? "L1",
+        anneeScolaireId: aId                      ?? "",
+        capaciteMax:     initial?.capaciteMax     ?? 30,
+        nbInscrits:      initial?.nbInscrits      ?? 0,
       });
     }
   }, [isOpen, initial]);
 
   if (!isOpen) return null;
 
-  const canSubmit = form.nom.trim() !== "" && form.filiere.trim() !== "" && form.annee.trim() !== "" && !isSaving;
+  const canSubmit = form.nom.trim() !== "" && form.filiereId !== "" && form.anneeScolaireId !== "" && !isSaving;
 
   const handleSubmit = () => {
     if (!canSubmit) return;
@@ -173,43 +184,47 @@ function FormModal({
             <Field label="Filière *" htmlFor="groupe-filiere">
               <select
                 id="groupe-filiere"
-                value={form.filiere}
-                onChange={(e) => setForm((f) => ({ ...f, filiere: e.target.value }))}
+                value={form.filiereId}
+                onChange={(e) => setForm((f) => ({ ...f, filiereId: e.target.value ? Number(e.target.value) : "" }))}
                 title="Filière rattachée"
                 className={inputCls}
               >
                 <option value="">Sélectionner une filière</option>
                 {filieres.map((f) => (
-                  <option key={f.id} value={f.nom}>
-                    {f.nom}
+                  <option key={f.id} value={f.id}>
+                    {f.nom} ({f.code})
                   </option>
                 ))}
               </select>
             </Field>
 
-            <Field label="Niveau" htmlFor="groupe-niveau">
-              <input
+            <Field label="Niveau *" htmlFor="groupe-niveau">
+              <select
                 id="groupe-niveau"
-                type="text"
-                value={form.niveau}
-                onChange={(e) => setForm((f) => ({ ...f, niveau: e.target.value }))}
-                placeholder="Ex : L2"
+                value={form.niveauAnnee}
+                onChange={(e) => setForm((f) => ({ ...f, niveauAnnee: e.target.value }))}
                 title="Niveau d'étude"
                 className={inputCls}
-              />
+              >
+                <option value="L1">L1</option>
+                <option value="L2">L2</option>
+                <option value="L3">L3</option>
+                <option value="M1">M1</option>
+                <option value="M2">M2</option>
+              </select>
             </Field>
 
-            <Field label="Année *" htmlFor="groupe-annee">
+            <Field label="Année académique *" htmlFor="groupe-annee">
               <select
                 id="groupe-annee"
-                value={form.annee}
-                onChange={(e) => setForm((f) => ({ ...f, annee: e.target.value }))}
+                value={form.anneeScolaireId}
+                onChange={(e) => setForm((f) => ({ ...f, anneeScolaireId: e.target.value ? Number(e.target.value) : "" }))}
                 title="Année universitaire"
                 className={inputCls}
               >
                 <option value="">Sélectionner une année</option>
                 {annees.map((a) => (
-                  <option key={a.id} value={a.label}>
+                  <option key={a.id} value={a.id}>
                     {a.label}
                   </option>
                 ))}
@@ -341,6 +356,30 @@ function GroupesPage() {
     ["groupes"],
     () => groupesApi.list(),
   );
+  const { data: filieres } = useApiList(
+    ["filieres"],
+    () => filieresApi.list({ limit: 1000 }),
+  );
+  const { data: annees } = useApiList(
+    ["annees-scolaires"],
+    () => anneesApi.list({ limit: 1000 }),
+  );
+
+  const getFiliereName = (g: Groupe) => {
+    if (!g.filiere) return "";
+    if (typeof g.filiere === "object") return (g.filiere as any).nom || "";
+    const found = filieres.find((f: any) => f.id === g.filiereId) as any;
+    if (found) return found.nom;
+    return String(g.filiere);
+  };
+
+  const getAnneeLabel = (g: Groupe) => {
+    if (!g.anneeScolaire) return "";
+    if (typeof g.anneeScolaire === "object") return (g.anneeScolaire as any).label || "";
+    const found = annees.find((a: any) => a.id === g.anneeScolaireId) as any;
+    if (found) return found.label;
+    return String(g.anneeScolaire);
+  };
 
   const qc = useQueryClient();
 
@@ -422,11 +461,14 @@ function GroupesPage() {
         />
 
         <FilterBar>
-          <SelectInput>{annees.map((a) => <option key={a.id}>{a.label}</option>)}</SelectInput>
           <SelectInput>
-            <option>Toutes les filières</option>
-            {filieres.map((f) => (
-              <option key={f.id}>{f.nom}</option>
+            <option value="">Toutes les années</option>
+            {annees.map((a: any) => <option key={a.id} value={a.id}>{a.label}</option>)}
+          </SelectInput>
+          <SelectInput>
+            <option value="">Toutes les filières</option>
+            {filieres.map((f: any) => (
+              <option key={f.id} value={f.id}>{f.nom}</option>
             ))}
           </SelectInput>
         </FilterBar>
@@ -456,11 +498,11 @@ function GroupesPage() {
                 <TR key={g.id}>
                   <TD className="text-muted-foreground">{g.id}</TD>
                   <TD className="font-mono font-medium">{g.nom}</TD>
-                  <TD>{g.filiere}</TD>
+                  <TD>{getFiliereName(g)}</TD>
                   <TD>
-                    <span className="bg-muted px-2 py-0.5 rounded-md font-medium text-xs">{g.niveau}</span>
+                    <span className="bg-muted px-2 py-0.5 rounded-md font-medium text-xs">{g.niveauAnnee}</span>
                   </TD>
-                  <TD>{g.annee}</TD>
+                  <TD>{getAnneeLabel(g)}</TD>
                   <TD>{g.capaciteMax}</TD>
                   <TD>{g.nbInscrits}</TD>
                   <TD>
@@ -504,6 +546,8 @@ function GroupesPage() {
         onSave={handleSave}
         onCancel={() => setFormOpen(false)}
         isSaving={add.isPending || edit.isPending}
+        filieres={filieres}
+        annees={annees}
       />
 
       <DeleteDialog

@@ -22,7 +22,7 @@ function LoginPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      const res = await authApi.login({ email, password });
+      const res = await authApi.login({ email, password }) as any;
       // Normalize response shapes: some backends return { accessToken, refreshToken, user }
       // while others return { success: true, data: { accessToken, ... } }
       const token = res?.accessToken ?? res?.data?.accessToken ?? res?.data?.token;

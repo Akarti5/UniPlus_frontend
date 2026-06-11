@@ -6,7 +6,7 @@ import { DataTable, THead, TH, TR, TD, ActionButton } from "@/components/ui/data
 import { StatusBadge } from "@/components/ui/badge-status";
 import { ApiStatusBanner } from "@/components/ApiStatusBanner";
 import { useApiList } from "@/lib/api/use-api-list";
-import { semestresApi } from "@/lib/api/endpoints";
+import { semestresApi, anneesApi } from "@/lib/api/endpoints";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
@@ -16,13 +16,16 @@ interface Semestre {
   id: number | string;
   numero: number;
   type: string;
-  anneeLabel: string;
+  anneeScolaireId?: number | string;
+  anneeScolaire?: string | { id: number | string; label: string };
   dateDebut: string;
   dateFin: string;
   actif: boolean;
 }
 
-type FormData = Omit<Semestre, "id">;
+type FormData = Omit<Semestre, "id" | "anneeScolaire"> & {
+  anneeScolaireId: number | string;
+};
 
 // ─── CSS Animations ───────────────────────────────────────────────────────────
 const ANIMATIONS = `
@@ -91,6 +94,7 @@ interface FormModalProps {
   onSave: (data: FormData & { id?: Semestre["id"] }) => void;
   onCancel: () => void;
   isSaving: boolean;
+  annees: any[];
 }
 
 function FormModal({
@@ -100,11 +104,12 @@ function FormModal({
   onSave,
   onCancel,
   isSaving,
+  annees,
 }: FormModalProps) {
   const [form, setForm] = useState<FormData>({
     numero: 1,
-    type: "Principal",
-    anneeLabel: annees[0]?.label ?? "",
+    type: "impair",
+    anneeScolaireId: "",
     dateDebut: "",
     dateFin: "",
     actif: true,
@@ -112,10 +117,11 @@ function FormModal({
 
   useEffect(() => {
     if (isOpen) {
+      const aId = initial?.anneeScolaireId ?? (typeof initial?.anneeScolaire === "object" ? initial?.anneeScolaire?.id : "");
       setForm({
         numero: initial?.numero ?? 1,
-        type: initial?.type ?? "Principal",
-        anneeLabel: initial?.anneeLabel ?? annees[0]?.label ?? "",
+        type: initial?.type ?? "impair",
+        anneeScolaireId: aId ?? "",
         dateDebut: initial?.dateDebut ?? "",
         dateFin: initial?.dateFin ?? "",
         actif: initial?.actif ?? true,
@@ -125,7 +131,7 @@ function FormModal({
 
   if (!isOpen) return null;
 
-  const canSubmit = form.numero > 0 && form.anneeLabel.trim() !== "" && !isSaving;
+  const canSubmit = form.numero > 0 && form.anneeScolaireId !== "" && !isSaving;
 
   const handleSubmit = () => {
     if (!canSubmit) return;
@@ -179,21 +185,22 @@ function FormModal({
                 title="Type de semestre"
                 className={inputCls}
               >
-                <option value="Principal">Principal</option>
-                <option value="Spécial">Spécial</option>
+                <option value="impair">Impair (S1, S3, S5...)</option>
+                <option value="pair">Pair (S2, S4, S6...)</option>
               </select>
             </Field>
 
-            <Field label="Année *" htmlFor="semestre-annee">
+            <Field label="Année académique *" htmlFor="semestre-annee">
               <select
                 id="semestre-annee"
-                value={form.anneeLabel}
-                onChange={(e) => setForm((f) => ({ ...f, anneeLabel: e.target.value }))}
+                value={form.anneeScolaireId}
+                onChange={(e) => setForm((f) => ({ ...f, anneeScolaireId: e.target.value ? Number(e.target.value) : "" }))}
                 title="Année universitaire"
                 className={inputCls}
               >
+                <option value="">Sélectionner une année</option>
                 {annees.map((a) => (
-                  <option key={a.id} value={a.label}>
+                  <option key={a.id} value={a.id}>
                     {a.label}
                   </option>
                 ))}
@@ -337,6 +344,18 @@ function SemestresPage() {
     ["semestres"],
     () => semestresApi.list(),
   );
+  const { data: annees } = useApiList(
+    ["annees-scolaires"],
+    () => anneesApi.list({ limit: 1000 }),
+  );
+
+  const getAnneeLabel = (s: Semestre) => {
+    if (!s.anneeScolaire) return "";
+    if (typeof s.anneeScolaire === "object") return (s.anneeScolaire as any).label || "";
+    const found = annees.find((a: any) => a.id === s.anneeScolaireId) as any;
+    if (found) return found.label;
+    return String(s.anneeScolaire);
+  };
 
   const qc = useQueryClient();
 
@@ -433,10 +452,8 @@ function SemestresPage() {
               <TR key={s.id}>
                 <TD className="text-muted-foreground">{s.id}</TD>
                 <TD className="font-semibold">S{s.numero}</TD>
-                <TD>
-                  <StatusBadge status={s.type} />
-                </TD>
-                <TD>{s.anneeLabel}</TD>
+                <TD>{s.type}</TD>
+                <TD>{getAnneeLabel(s)}</TD>
                 <TD className="text-muted-foreground">{s.dateDebut}</TD>
                 <TD className="text-muted-foreground">{s.dateFin}</TD>
                 <TD>
@@ -474,6 +491,7 @@ function SemestresPage() {
         onSave={handleSave}
         onCancel={() => setFormOpen(false)}
         isSaving={add.isPending || edit.isPending}
+        annees={annees}
       />
 
       <DeleteDialog

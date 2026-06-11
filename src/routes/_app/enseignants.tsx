@@ -6,7 +6,7 @@ import { FilterBar, SearchInput } from "@/components/ui/filter-bar";
 import { DataTable, THead, TH, TR, TD, Avatar, ActionButton } from "@/components/ui/data-table";
 import { useState, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { enseignantsApi } from "@/lib/api/endpoints";
+import { enseignantsApi, departementsApi } from "@/lib/api/endpoints";
 import { useApiList } from "@/lib/api/use-api-list";
 import { toast } from "sonner";
 
@@ -16,14 +16,21 @@ interface Enseignant {
   id: number | string;
   nom: string;
   prenom: string;
-  departement: string;
+  departementId?: number | string;
+  departement?: string | {
+    id: number | string;
+    nom: string;
+    code: string;
+  };
   grade: string;
   specialite: string;
   email: string;
   actif: boolean;
 }
 
-type FormData = Omit<Enseignant, "id">;
+type FormData = Omit<Enseignant, "id" | "departement"> & {
+  departementId: number | string;
+};
 
 // ─── CSS Animations (identiques à affectations.tsx) ──────────────────────────
 
@@ -97,6 +104,7 @@ interface FormModalProps {
   onSave: (data: FormData & { id?: Enseignant["id"] }) => void;
   onCancel: () => void;
   isSaving: boolean;
+  departements: any[];
 }
 
 function FormModal({
@@ -106,11 +114,12 @@ function FormModal({
   onSave,
   onCancel,
   isSaving,
+  departements,
 }: FormModalProps) {
   const [form, setForm] = useState<FormData>({
     nom: "",
     prenom: "",
-    departement: "",
+    departementId: "",
     grade: "",
     specialite: "",
     email: "",
@@ -119,14 +128,15 @@ function FormModal({
 
   useEffect(() => {
     if (isOpen) {
+      const depId = initial?.departementId ?? (typeof initial?.departement === "object" ? initial?.departement?.id : "");
       setForm({
-        nom:         initial?.nom         ?? "",
-        prenom:      initial?.prenom      ?? "",
-        departement: initial?.departement ?? "",
-        grade:       initial?.grade       ?? "",
-        specialite:  initial?.specialite  ?? "",
-        email:       initial?.email       ?? "",
-        actif:       initial?.actif       ?? true,
+        nom:           initial?.nom           ?? "",
+        prenom:        initial?.prenom        ?? "",
+        departementId: depId                  ?? "",
+        grade:         initial?.grade         ?? "",
+        specialite:    initial?.specialite    ?? "",
+        email:         initial?.email         ?? "",
+        actif:         initial?.actif         ?? true,
       });
     }
   }, [isOpen, initial]);
@@ -134,7 +144,7 @@ function FormModal({
   if (!isOpen) return null;
 
   const canSubmit =
-    form.nom.trim() !== "" && form.prenom.trim() !== "" && !isSaving;
+    form.nom.trim() !== "" && form.prenom.trim() !== "" && form.departementId !== "" && !isSaving;
 
   const handleSubmit = () => {
     if (!canSubmit) return;
@@ -209,16 +219,21 @@ function FormModal({
 
             {/* Département + Grade */}
             <div className="gap-4 grid grid-cols-2">
-              <Field label="Département" htmlFor="ens-dept">
-                <input
+              <Field label="Département *" htmlFor="ens-dept">
+                <select
                   id="ens-dept"
-                  type="text"
-                  value={form.departement}
-                  onChange={(e) => setForm((f) => ({ ...f, departement: e.target.value }))}
-                  placeholder="Ex : Informatique"
+                  value={form.departementId}
+                  onChange={(e) => setForm((f) => ({ ...f, departementId: e.target.value ? Number(e.target.value) : "" }))}
                   title="Département de l'enseignant"
                   className={inputCls}
-                />
+                >
+                  <option value="">Sélectionner...</option>
+                  {departements.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.nom} ({d.code})
+                    </option>
+                  ))}
+                </select>
               </Field>
               <Field label="Grade" htmlFor="ens-grade">
                 <input
@@ -361,7 +376,7 @@ function DeleteDialog({ isOpen, target, onConfirm, onCancel }: DeleteDialogProps
             <p className="mb-1 font-semibold text-gray-800 dark:text-gray-200 text-sm">
               {target.nom} {target.prenom}
               <span className="bg-gray-100 dark:bg-gray-800 ml-2 px-1.5 py-0.5 rounded font-mono text-gray-500 text-xs">
-                {target.departement}
+                {target.departement && typeof target.departement === "object" ? (target.departement as any).nom : target.departement || ""}
               </span>
             </p>
             <p className="mt-3 text-gray-400 text-xs">Cette action est irréversible.</p>
@@ -399,7 +414,16 @@ export const Route = createFileRoute("/_app/enseignants")({
 
 function EnseignantsPage() {
   const { data: items, isFallback, refetch } = useApiList(["enseignants"], () => enseignantsApi.list?.() ?? Promise.resolve([]), [] as Enseignant[]);
+  const { data: depts } = useApiList(["departements"], () => departementsApi.list?.({ limit: 1000 }) ?? Promise.resolve([]));
   const [q, setQ]         = useState("");
+
+  const getDeptName = (e: Enseignant) => {
+    if (!e.departement) return "";
+    if (typeof e.departement === "object") return (e.departement as any).nom || "";
+    const found = depts.find((d: any) => d.id === e.departementId) as any;
+    if (found) return found.nom;
+    return String(e.departement);
+  };
 
   // ── Modal state ──────────────────────────────────────────────────────────
   const [formOpen, setFormOpen]       = useState(false);
@@ -413,7 +437,7 @@ function EnseignantsPage() {
   const list = items.filter(
     (e) =>
       !q ||
-      `${e.nom} ${e.prenom} ${e.departement}`
+      `${e.nom} ${e.prenom} ${getDeptName(e)}`
         .toLowerCase()
         .includes(q.toLowerCase())
   );
@@ -431,9 +455,15 @@ function EnseignantsPage() {
     setFormOpen(true);
   };
 
-  const createMutation = useMutation((payload: FormData) => enseignantsApi.create?.(payload));
-  const updateMutation = useMutation(({ id, payload }: { id: number | string; payload: FormData }) => enseignantsApi.update?.(id, payload));
-  const removeMutation = useMutation((id: number | string) => enseignantsApi.remove?.(id));
+  const createMutation = useMutation({
+    mutationFn: (payload: FormData) => enseignantsApi.create?.(payload)
+  });
+  const updateMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: number | string; payload: FormData }) => enseignantsApi.update?.(id, payload)
+  });
+  const removeMutation = useMutation({
+    mutationFn: (id: number | string) => enseignantsApi.remove?.(id)
+  });
 
   const handleSave = async (data: FormData & { id?: Enseignant["id"] }) => {
     try {
@@ -511,7 +541,7 @@ function EnseignantsPage() {
                     <span className="font-medium">{e.nom} {e.prenom}</span>
                   </div>
                 </TD>
-                <TD>{e.departement}</TD>
+                <TD>{getDeptName(e)}</TD>
                 <TD>
                   <span className="bg-purple-100 px-2 py-0.5 rounded-md font-semibold text-purple-700 text-xs">
                     {e.grade}
@@ -564,7 +594,8 @@ function EnseignantsPage() {
         initial={formInitial}
         onSave={handleSave}
         onCancel={() => setFormOpen(false)}
-        isSaving={false}
+        isSaving={createMutation.isPending || updateMutation.isPending}
+        departements={depts}
       />
 
       {/* Delete Confirmation */}

@@ -6,7 +6,7 @@ import { DataTable, THead, TH, TR, TD, ActionButton } from "@/components/ui/data
 import { StatusBadge } from "@/components/ui/badge-status";
 import { ApiStatusBanner } from "@/components/ApiStatusBanner";
 import { useApiList } from "@/lib/api/use-api-list";
-import { filieresApi } from "@/lib/api/endpoints";
+import { filieresApi, departementsApi } from "@/lib/api/endpoints";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
@@ -16,13 +16,20 @@ interface Filiere {
   id: number | string;
   code: string;
   nom: string;
-  departement: string;
+  departementId?: number | string;
+  departement?: string | {
+    id: number | string;
+    nom: string;
+    code: string;
+  };
   typeDiplome: string;
   dureeAnnees: number;
   nbGroupes: number;
 }
 
-type FormData = Omit<Filiere, "id">;
+type FormData = Omit<Filiere, "id" | "departement"> & {
+  departementId: number | string;
+};
 
 // ─── CSS Animations ───────────────────────────────────────────────────────────
 const ANIMATIONS = `
@@ -91,6 +98,7 @@ interface FormModalProps {
   onSave: (data: FormData & { id?: Filiere["id"] }) => void;
   onCancel: () => void;
   isSaving: boolean;
+  departements: any[];
 }
 
 function FormModal({
@@ -100,11 +108,12 @@ function FormModal({
   onSave,
   onCancel,
   isSaving,
+  departements,
 }: FormModalProps) {
   const [form, setForm] = useState<FormData>({
     code: "",
     nom: "",
-    departement: "",
+    departementId: "",
     typeDiplome: "",
     dureeAnnees: 3,
     nbGroupes: 0,
@@ -112,10 +121,11 @@ function FormModal({
 
   useEffect(() => {
     if (isOpen) {
+      const depId = initial?.departementId ?? (typeof initial?.departement === "object" ? initial?.departement?.id : "");
       setForm({
         code: initial?.code ?? "",
         nom: initial?.nom ?? "",
-        departement: initial?.departement ?? "",
+        departementId: depId ?? "",
         typeDiplome: initial?.typeDiplome ?? "",
         dureeAnnees: initial?.dureeAnnees ?? 3,
         nbGroupes: initial?.nbGroupes ?? 0,
@@ -125,7 +135,7 @@ function FormModal({
 
   if (!isOpen) return null;
 
-  const canSubmit = form.code.trim() !== "" && form.nom.trim() !== "" && form.departement.trim() !== "" && !isSaving;
+  const canSubmit = form.code.trim() !== "" && form.nom.trim() !== "" && form.departementId !== "" && !isSaving;
 
   const handleSubmit = () => {
     if (!canSubmit) return;
@@ -184,15 +194,20 @@ function FormModal({
             </Field>
 
             <Field label="Département *" htmlFor="filiere-dept">
-              <input
+              <select
                 id="filiere-dept"
-                type="text"
-                value={form.departement}
-                onChange={(e) => setForm((f) => ({ ...f, departement: e.target.value }))}
-                placeholder="Ex : Informatique"
+                value={form.departementId}
+                onChange={(e) => setForm((f) => ({ ...f, departementId: e.target.value ? Number(e.target.value) : "" }))}
                 title="Département rattaché"
                 className={inputCls}
-              />
+              >
+                <option value="">Sélectionner...</option>
+                {departements.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.nom} ({d.code})
+                  </option>
+                ))}
+              </select>
             </Field>
 
             <Field label="Type de diplôme" htmlFor="filiere-diplome">
@@ -294,7 +309,7 @@ function DeleteDialog({ isOpen, target, onConfirm, onCancel, isDeleting }: Delet
               Confirmer la suppression
             </h3>
             <p className="text-gray-500 dark:text-gray-400 text-sm">
-              Vous êtes sur le point de supprimer la filière <strong>{target.nom}</strong>
+              Vous êtes sur le point de supprimer la filière <strong>{target.nom}</strong> ({target.departement && typeof target.departement === "object" ? (target.departement as any).nom : target.departement || ""})
             </p>
             <p className="mt-3 text-gray-400 text-xs">Cette action est irréversible.</p>
           </div>
@@ -336,6 +351,18 @@ function FilieresPage() {
     ["filieres"],
     () => filieresApi.list(),
   );
+  const { data: depts } = useApiList(
+    ["departements"],
+    () => departementsApi.list({ limit: 1000 }),
+  );
+
+  const getDeptName = (f: Filiere) => {
+    if (!f.departement) return "";
+    if (typeof f.departement === "object") return (f.departement as any).nom || "";
+    const found = depts.find((d: any) => d.id === f.departementId) as any;
+    if (found) return found.nom;
+    return String(f.departement);
+  };
 
   const qc = useQueryClient();
 
@@ -435,8 +462,8 @@ function FilieresPage() {
                     {f.code}
                   </span>
                 </TD>
-                <TD className="font-medium">{f.nom}</TD>
-                <TD>{f.departement}</TD>
+                <TD>{f.nom}</TD>
+                <TD>{getDeptName(f)}</TD>
                 <TD>
                   <StatusBadge status={f.typeDiplome} />
                 </TD>
@@ -474,6 +501,7 @@ function FilieresPage() {
         onSave={handleSave}
         onCancel={() => setFormOpen(false)}
         isSaving={add.isPending || edit.isPending}
+        departements={depts}
       />
 
       <DeleteDialog

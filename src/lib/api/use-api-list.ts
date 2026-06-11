@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
  */
 export function useApiList<T>(
   key: readonly unknown[],
-  fetcher: () => Promise<T[] | { data?: T[]; items?: T[]; success?: boolean }>,
+  fetcher: () => Promise<any>,
   fallback?: T[],
 ) {
   const query = useQuery({
@@ -15,8 +15,14 @@ export function useApiList<T>(
       const res = await fetcher();
       // Handle different response formats
       if (Array.isArray(res)) return res;
-      if (res?.data && Array.isArray(res.data)) return res.data;
-      if (res?.items && Array.isArray(res.items)) return res.items;
+      if (res?.data) {
+        if (Array.isArray(res.data)) return res.data;
+        if (res.data.data && Array.isArray(res.data.data)) return res.data.data;
+      }
+      if (res?.items) {
+        if (Array.isArray(res.items)) return res.items;
+        if (res.items.items && Array.isArray(res.items.items)) return res.items.items;
+      }
       return [];
     },
     retry: 2,

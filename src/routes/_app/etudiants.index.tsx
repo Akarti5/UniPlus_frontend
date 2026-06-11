@@ -31,7 +31,7 @@ function EtudiantsListPage() {
     onError: (e: any) => toast.error(`Suppression impossible — ${e?.message ?? "API hors-ligne"}`),
   });
 
-  const filtered = (data as typeof mock).filter((e) => {
+  const filtered = (data as any[]).filter((e: any) => {
     const matchQ = !q || `${e.nom} ${e.prenom} ${e.matricule}`.toLowerCase().includes(q.toLowerCase());
     const matchS = !status || e.statut === status;
     return matchQ && matchS;
@@ -110,7 +110,7 @@ function EtudiantsListPage() {
       </DataTable>
 
       <div className="flex justify-between items-center mt-4 text-muted-foreground text-sm">
-        <div>Affichage 1-{filtered.length} sur {(data as typeof mock).length} étudiants</div>
+        <div>Affichage 1-{filtered.length} sur {(data as any[]).length} étudiants</div>
         <div className="flex gap-2">
           <Button variant="secondary" size="sm">Précédent</Button>
           <Button variant="secondary" size="sm">Suivant</Button>

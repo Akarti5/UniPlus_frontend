@@ -360,7 +360,7 @@ export const Route = createFileRoute("/_app/annees")({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 function AnneesPage() {
-  const { data: items, refetch } = useApiList(
+  const { data: items, refetch } = useApiList<Annee>(
     ["annees-scolaires"],
     () => anneesApi.list({ limit: 1000 }),
   );
