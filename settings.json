@@ -1,0 +1,16 @@
+{
+  "files.associations": {
+    "bun.lock": "jsonc"
+  },
+  "json.schemas": [
+    {
+      "fileMatch": ["components.json"],
+      "url": "https://ui.shadcn.com/schema.json"
+    }
+  ],
+  "json.schemaDownload.enable": true,
+
+  "css.validate": false,
+  "scss.validate": false,
+  "css.lint.unknownAtRules": "ignore"
+}
