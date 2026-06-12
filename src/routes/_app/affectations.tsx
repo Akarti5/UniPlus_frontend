@@ -491,9 +491,12 @@ function AffectationsPage() {
   });
 
   // ── Update mutation ─────────────────────────────────────────────────────
+  // API doesn't support PUT, so we delete the old one and create a new one
   const editMutation = useMutation({
-    mutationFn: ({ id, ...payload }: FormData & { id: number }) =>
-      affectationsApi.update(id, payload),
+    mutationFn: async ({ id, ...payload }: FormData & { id: number }) => {
+      await affectationsApi.remove(id);
+      return affectationsApi.create(payload);
+    },
     onSuccess: () => {
       toast.success("Affectation modifiée avec succès !");
       refetchAffectations();

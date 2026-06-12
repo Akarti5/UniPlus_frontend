@@ -156,6 +156,5 @@ export const affectationsApi = {
   list: (params?: { page?: number; limit?: number }) => api<any>(`/affectations-cours`, { query: params }),
   get: (id: string | number) => api<any>(`/affectations-cours/${id}`),
   create: (data: any) => api<any>(`/affectations-cours`, { method: "POST", body: data }),
-  update: (id: string | number, data: any) => api<any>(`/affectations-cours/${id}`, { method: "PUT", body: data }),
   remove: (id: string | number) => api<void>(`/affectations-cours/${id}`, { method: "DELETE" }),
 };
