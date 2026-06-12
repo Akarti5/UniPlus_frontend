@@ -28,7 +28,7 @@ interface Ue {
 type FormData = {
   code: string;
   intitule: string;
-  filiereId: number | string;
+  filiereId: number | "";
   semestreNumero: number;
   typeUe: string;
   creditsEcts: number;
@@ -130,13 +130,13 @@ function FormModal({
 
   useEffect(() => {
     if (isOpen) {
-      let filiereId = "";
+      let filiereId: number | "" = "";
       if (initial?.filiere) {
         if (typeof initial.filiere === "object") {
-          filiereId = initial.filiere.id;
+          filiereId = Number(initial.filiere.id) || "";
         } else {
           const found = filieres.find(f => f.nom === initial.filiere || f.id === initial.filiere);
-          filiereId = found?.id ?? "";
+          filiereId = found ? Number(found.id) || "" : "";
         }
       }
 
@@ -157,7 +157,11 @@ function FormModal({
 
   const handleSubmit = () => {
     if (!canSubmit) return;
-    onSave({ ...form, ...(initial?.id !== undefined ? { id: initial.id } : {}) });
+    onSave({
+      ...form,
+      filiereId: Number(form.filiereId),
+      ...(initial?.id !== undefined ? { id: initial.id } : {}),
+    });
   };
 
   return (
@@ -215,7 +219,7 @@ function FormModal({
               <select
                 id="ue-filiere"
                 value={form.filiereId}
-                onChange={(e) => setForm((f) => ({ ...f, filiereId: e.target.value }))}
+                onChange={(e) => setForm((f) => ({ ...f, filiereId: e.target.value ? Number(e.target.value) : "" }))}
                 title="Filière rattachée"
                 className={inputCls}
               >
