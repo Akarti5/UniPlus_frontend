@@ -6,7 +6,7 @@ import { FilterBar, SelectInput } from "@/components/ui/filter-bar";
 import { DataTable, THead, TH, TR, TD, ActionButton } from "@/components/ui/data-table";
 import { ApiStatusBanner } from "@/components/ApiStatusBanner";
 import { useApiList } from "@/lib/api/use-api-list";
-import { matieresApi } from "@/lib/api/endpoints";
+import { matieresApi, ueApi } from "@/lib/api/endpoints";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
@@ -90,6 +90,7 @@ interface FormModalProps {
   onSave: (data: FormData & { id?: Matiere["id"] }) => void;
   onCancel: () => void;
   isSaving: boolean;
+  ues: { id: number | string; code: string; intitule: string }[];
 }
 
 function FormModal({
@@ -99,6 +100,7 @@ function FormModal({
   onSave,
   onCancel,
   isSaving,
+  ues,
 }: FormModalProps) {
   const [form, setForm] = useState<FormData>({
     code: "",
@@ -128,7 +130,6 @@ function FormModal({
     if (!canSubmit) return;
     onSave({ ...form, ...(initial?.id !== undefined ? { id: initial.id } : {}) });
   };
-  const [ues, setUes] = useState<{ id: number | string; code: string; intitule: string }[]>([]);
 
   return (
     <>
@@ -324,6 +325,10 @@ function MatieresPage() {
     ["matieres"],
     () => matieresApi.list(),
   );
+  const { data: ues } = useApiList<{ id: number | string; code: string; intitule: string }>(
+    ["ues"],
+    () => ueApi.list({ limit: 1000 }),
+  );
 
   const qc = useQueryClient();
 
@@ -467,6 +472,7 @@ function MatieresPage() {
         onSave={handleSave}
         onCancel={() => setFormOpen(false)}
         isSaving={add.isPending || edit.isPending}
+        ues={ues}
       />
 
       <DeleteDialog

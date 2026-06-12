@@ -94,6 +94,7 @@ interface FormModalProps {
   onSave: (data: FormData & { id?: Ue["id"] }) => void;
   onCancel: () => void;
   isSaving: boolean;
+  filieres: { id: number | string; nom: string }[];
 }
 
 function FormModal({
@@ -103,6 +104,7 @@ function FormModal({
   onSave,
   onCancel,
   isSaving,
+  filieres,
 }: FormModalProps) {
   const [form, setForm] = useState<FormData>({
     code: "",
@@ -197,7 +199,7 @@ function FormModal({
                 className={inputCls}
               >
                 <option value="">Sélectionner une filière</option>
-                {filieresApi.map((f) => (
+                {filieres.map((f) => (
                   <option key={f.id} value={f.nom}>
                     {f.nom}
                   </option>
@@ -360,6 +362,10 @@ function UePage() {
     ["ues"],
     () => ueApi.list(),
   );
+  const { data: filieres } = useApiList<{ id: number | string; nom: string }>(
+    ["filieres"],
+    () => filieresApi.list({ limit: 1000 }),
+  );
 
   const qc = useQueryClient();
 
@@ -438,7 +444,7 @@ function UePage() {
         <FilterBar>
           <SelectInput>
             <option>Toutes les filières</option>
-            {filieresApi.map((f) => (
+            {filieres.map((f) => (
               <option key={f.id}>{f.nom}</option>
             ))}
           </SelectInput>
@@ -515,6 +521,7 @@ function UePage() {
         onSave={handleSave}
         onCancel={() => setFormOpen(false)}
         isSaving={add.isPending || edit.isPending}
+        filieres={filieres}
       />
 
       <DeleteDialog
