@@ -390,8 +390,9 @@ function GroupesPage() {
 
   const add = useMutation({
     mutationFn: (payload: FormData) => {
+      const { nbInscrits, ...data } = payload;
       // POST expects: filiereId, anneeScolaireId, nom, niveauAnnee, capaciteMax
-      return groupesApi.create(payload);
+      return groupesApi.create(data);
     },
     onSuccess: () => {
       toast.success("Groupe ajouté avec succès !");
@@ -403,10 +404,9 @@ function GroupesPage() {
   });
 
   const edit = useMutation({
-    mutationFn: ({ id, ...payload }: FormData & { id: Groupe["id"] }) => {
-      const { filiereId, anneeScolaireId, ...data } = payload;
-      // PUT only accepts: nom, niveauAnnee, capaciteMax
-      return groupesApi.update(id, data);
+    mutationFn: ({ id, ...payload }: any) => {
+      // Receives pre-filtered data from handleSave (nom, niveauAnnee, capaciteMax only)
+      return groupesApi.update(id, payload);
     },
     onSuccess: () => {
       toast.success("Groupe modifié avec succès !");
@@ -444,7 +444,9 @@ function GroupesPage() {
     if (formMode === "add") {
       add.mutate(data as FormData);
     } else if (data.id !== undefined) {
-      edit.mutate({ id: data.id, ...data });
+      const { id, filiereId, anneeScolaireId, nbInscrits, ...updateData } = data;
+      // Only send nom, niveauAnnee, capaciteMax to PUT endpoint
+      edit.mutate({ id, ...updateData });
     }
   };
 
