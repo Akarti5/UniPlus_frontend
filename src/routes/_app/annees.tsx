@@ -451,7 +451,11 @@ function AnneesPage() {
 
   // ── Mutations ──────────────────────────────────────────────────────────
   const create = useMutation({
-    mutationFn: (payload: FormData) => anneesApi.create(payload),
+    mutationFn: (payload: FormData) => {
+      const { nbSemestres, ...data } = payload;
+      // Only send label, dateDebut, dateFin, and actif to the API
+      return anneesApi.create(data);
+    },
     onSuccess: () => {
       toast.success("Année scolaire ajoutée");
       qc.invalidateQueries({ queryKey: ["annees-scolaires"] });
@@ -463,7 +467,8 @@ function AnneesPage() {
 
   const update = useMutation({
     mutationFn: (data: FormData & { id: Annee["id"] }) => {
-      const { id, ...payload } = data;
+      const { id, nbSemestres, ...payload } = data;
+      // Only send label, dateDebut, dateFin, and actif to the API
       return anneesApi.update(id, payload);
     },
     onSuccess: () => {
