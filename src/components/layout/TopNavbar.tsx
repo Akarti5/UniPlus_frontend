@@ -1,7 +1,9 @@
 import { Bell, Search, ChevronDown, Menu, LogOut, UserCircle } from "lucide-react";
 import { useRouterState, Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { auth } from "@/lib/api/client";
+import { anneesApi } from "@/lib/api/endpoints";
+import { useQuery } from "@tanstack/react-query";
 
 const labels: Record<string, string> = {
   dashboard: "Tableau de bord",
@@ -38,6 +40,13 @@ export function TopNavbar({ onMenuClick }: { onMenuClick: () => void }) {
   const user = auth.getUser<{ email?: string; nom?: string; prenom?: string }>();
   const initials = `${user?.prenom?.[0] ?? "A"}${user?.nom?.[0] ?? "A"}`.toUpperCase();
   const handleLogout = () => { auth.clear(); navigate({ to: "/login", replace: true }); };
+
+  // Fetch active academic year
+  const { data: activeAnnee } = useQuery({
+    queryKey: ["annees-active"],
+    queryFn: () => anneesApi.active(),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
 
   return (
     <header className="top-0 z-20 sticky flex items-center gap-4 bg-card/80 backdrop-blur-lg px-6 border-border border-b h-16">
@@ -82,7 +91,7 @@ export function TopNavbar({ onMenuClick }: { onMenuClick: () => void }) {
         </button>
 
         <button className="flex items-center gap-2 bg-background hover:bg-muted px-3 border border-border rounded-lg h-9 font-medium text-foreground text-sm">
-          <span className="hidden sm:inline">2025-2026</span>
+          <span className="hidden sm:inline">{activeAnnee?.label || "Année active"}</span>
           <ChevronDown className="w-4 h-4 text-muted-foreground" />
         </button>
 

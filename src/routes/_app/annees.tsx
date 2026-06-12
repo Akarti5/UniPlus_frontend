@@ -480,6 +480,18 @@ function AnneesPage() {
     onError: (e: any) => toast.error(e?.message ?? "Erreur"),
   });
 
+  const toggleActive = useMutation({
+    mutationFn: (data: { id: Annee["id"]; actif: boolean }) =>
+      anneesApi.update(data.id, { actif: data.actif }),
+    onSuccess: () => {
+      toast.success("Statut mis à jour");
+      qc.invalidateQueries({ queryKey: ["annees-scolaires"] });
+      qc.invalidateQueries({ queryKey: ["annees-active"] });
+      refetch();
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Erreur"),
+  });
+
   const remove = useMutation({
     mutationFn: (id: Annee["id"]) => anneesApi.remove(id),
     onSuccess: () => {
@@ -555,8 +567,10 @@ function AnneesPage() {
                   <label className="inline-flex relative items-center w-9 h-5 cursor-pointer">
                     <input
                       type="checkbox"
-                      defaultChecked={a.actif}
-                      className="sr-only peer"
+                      checked={a.actif}
+                      onChange={(e) => toggleActive.mutate({ id: a.id, actif: e.target.checked })}
+                      disabled={toggleActive.isPending}
+                      className="sr-only peer disabled:opacity-50 disabled:cursor-not-allowed"
                       aria-label={`Activer l'année ${a.label}`}
                       title={`Activer l'année ${a.label}`}
                     />
