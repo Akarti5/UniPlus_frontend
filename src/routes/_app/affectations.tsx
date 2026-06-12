@@ -473,8 +473,6 @@ function AffectationsPage() {
 
   // ── Modal state ──────────────────────────────────────────────────────────
   const [formOpen, setFormOpen] = useState(false);
-  const [formMode, setFormMode] = useState<"add" | "edit">("add");
-  const [formInitial, setFormInitial] = useState<Partial<Affectation> | undefined>();
 
   // ── Delete state ─────────────────────────────────────────────────────────
   const [deleteTarget, setDeleteTarget] = useState<Affectation | null>(null);
@@ -492,20 +490,6 @@ function AffectationsPage() {
 
   // ── Update mutation ─────────────────────────────────────────────────────
   // API doesn't support PUT, so we delete the old one and create a new one
-  const editMutation = useMutation({
-    mutationFn: async ({ id, ...payload }: FormData & { id: number }) => {
-      await affectationsApi.remove(id);
-      return affectationsApi.create(payload);
-    },
-    onSuccess: () => {
-      toast.success("Affectation modifiée avec succès !");
-      refetchAffectations();
-      setFormOpen(false);
-    },
-    onError: (e: any) => toast.error(e?.message ?? "Erreur lors de la modification"),
-  });
-
-  // ── Delete mutation ─────────────────────────────────────────────────────
   const deleteMutation = useMutation({
     mutationFn: (id: number) => affectationsApi.remove(id),
     onSuccess: () => {
@@ -518,24 +502,12 @@ function AffectationsPage() {
 
   // ── Handlers ────────────────────────────────────────────────────────────────
   const openAdd = () => {
-    setFormMode("add");
-    setFormInitial(undefined);
-    setFormOpen(true);
-  };
-
-  const openEdit = (a: Affectation) => {
-    setFormMode("edit");
-    setFormInitial(a);
     setFormOpen(true);
   };
 
   const handleSave = (data: FormData & { id?: number }) => {
-    if (formMode === "add") {
-      const { id: _ignored, ...payload } = data as any;
-      addMutation.mutate(payload);
-    } else if (data.id !== undefined) {
-      editMutation.mutate(data as FormData & { id: number });
-    }
+    const { id: _ignored, ...payload } = data as any;
+    addMutation.mutate(payload);
   };
 
   const handleDelete = () => {
@@ -680,11 +652,11 @@ function AffectationsPage() {
       {/* Form Modal (Add / Edit) */}
       <FormModal
         isOpen={formOpen}
-        mode={formMode}
-        initial={formInitial}
+        mode="add"
+        initial={undefined}
         onSave={handleSave}
         onCancel={() => setFormOpen(false)}
-        isSaving={addMutation.isPending || editMutation.isPending}
+        isSaving={addMutation.isPending}
         matieres={matieres}
         enseignants={enseignants}
         semestres={semestres}
