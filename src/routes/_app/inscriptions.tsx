@@ -28,6 +28,39 @@ interface Inscription {
 
 type FormData = Omit<Inscription, "id">;
 
+function getEtudiantName(etudiant: unknown): string {
+  if (!etudiant) return "";
+  if (typeof etudiant === "string") return etudiant;
+  if (typeof etudiant === "object") {
+    const e = etudiant as { nom?: string; prenom?: string };
+    return [e.prenom, e.nom].filter(Boolean).join(" ");
+  }
+  return String(etudiant);
+}
+
+function getMatricule(item: { matricule?: string; etudiant?: unknown }): string {
+  if (typeof item.matricule === "string") return item.matricule;
+  if (item.etudiant && typeof item.etudiant === "object") {
+    return (item.etudiant as { matricule?: string }).matricule ?? "";
+  }
+  return "";
+}
+
+function getRelationLabel(value: unknown, key = "nom"): string {
+  if (!value) return "";
+  if (typeof value === "object") return String((value as Record<string, string>)[key] ?? "");
+  return String(value);
+}
+
+function getPaye(item: { paye?: boolean; montantPaye?: number; datePaiement?: string }): boolean {
+  if (typeof item.paye === "boolean") return item.paye;
+  return !!(item.montantPaye && item.montantPaye > 0) || !!item.datePaiement;
+}
+
+function getDateInscription(item: { dateInscription?: string; datePaiement?: string; createdAt?: string }): string {
+  return item.dateInscription ?? item.datePaiement ?? item.createdAt?.slice(0, 10) ?? "";
+}
+
 // ─── CSS Animations ───────────────────────────────────────────────────────────
 const ANIMATIONS = `
   @keyframes backdropIn { from { opacity: 0; } to { opacity: 1; } }
@@ -74,20 +107,20 @@ function DetailModal({ isOpen, inscription, onClose }: { isOpen: boolean; inscri
 
           <div className="space-y-6 p-6">
             <div className="flex items-center gap-4">
-              <Avatar name={inscription.etudiant} />
+              <Avatar name={getEtudiantName(inscription.etudiant)} />
               <div>
-                <div className="font-semibold text-2xl">{inscription.etudiant}</div>
-                <div className="font-mono text-muted-foreground">{inscription.matricule}</div>
+                <div className="font-semibold text-2xl">{getEtudiantName(inscription.etudiant)}</div>
+                <div className="font-mono text-muted-foreground">{getMatricule(inscription)}</div>
               </div>
             </div>
 
             <div className="gap-x-8 gap-y-3 grid grid-cols-2 text-sm">
-              <div><strong>Groupe :</strong> {inscription.groupe}</div>
-              <div><strong>Filière :</strong> {inscription.filiere}</div>
-              <div><strong>Niveau :</strong> {inscription.niveau}</div>
-              <div><strong>Date :</strong> {inscription.dateInscription}</div>
+              <div><strong>Groupe :</strong> {getRelationLabel(inscription.groupe)}</div>
+              <div><strong>Filière :</strong> {getRelationLabel(inscription.filiere)}</div>
+              <div><strong>Niveau :</strong> {getRelationLabel(inscription.niveau, "niveau") || getRelationLabel((inscription as any).groupe?.niveau)}</div>
+              <div><strong>Date :</strong> {getDateInscription(inscription)}</div>
               <div><strong>Statut :</strong> <StatusBadge status={inscription.statut} /></div>
-              <div><strong>Paiement :</strong> <StatusBadge status={inscription.paye ? "paye" : "impaye"} /></div>
+              <div><strong>Paiement :</strong> <StatusBadge status={getPaye(inscription) ? "paye" : "impaye"} /></div>
             </div>
 
             {inscription.estRedoublant && (
@@ -127,7 +160,17 @@ function FormModal({ isOpen, mode, initial, onSave, onCancel, isSaving, groupes 
 
   useEffect(() => {
     if (isOpen && initial) {
-      setForm({ ...initial } as FormData);
+      setForm({
+        etudiant: getEtudiantName(initial.etudiant),
+        matricule: getMatricule(initial),
+        groupe: getRelationLabel(initial.groupe),
+        filiere: getRelationLabel(initial.filiere),
+        niveau: initial.niveau ? getRelationLabel(initial.niveau, "niveau") : getRelationLabel((initial as any).groupe?.niveau, "niveau"),
+        statut: initial.statut ?? "actif",
+        estRedoublant: initial.estRedoublant ?? false,
+        dateInscription: getDateInscription(initial),
+        paye: getPaye(initial),
+      });
     } else if (isOpen) {
       setForm({ etudiant: "", matricule: "", groupe: "", filiere: "", niveau: "", statut: "actif", estRedoublant: false, dateInscription: "", paye: false });
     }
@@ -226,7 +269,7 @@ function DeleteDialog({ isOpen, target, onConfirm, onCancel, isDeleting }: {
               <AlertTriangle className="w-8 h-8 text-red-600" />
             </div>
             <h3 className="mb-2 font-bold text-lg">Confirmer la suppression</h3>
-            <p className="text-gray-500">Voulez-vous vraiment supprimer l'inscription de <strong>{target.etudiant}</strong> ?</p>
+            <p className="text-gray-500">Voulez-vous vraiment supprimer l'inscription de <strong>{getEtudiantName(target.etudiant)}</strong> ?</p>
           </div>
           <div className="flex gap-3 px-6 pb-6">
             <button onClick={onCancel} className="flex-1 py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl font-medium">Annuler</button>
@@ -263,10 +306,14 @@ function InscriptionsPage() {
 
   const qc = useQueryClient();
 
-  const filteredData = (data as Inscription[]).filter(i =>
-    (!q || `${i.etudiant} ${i.matricule}`.toLowerCase().includes(q.toLowerCase())) &&
-    (!statut || i.statut === statut)
-  );
+  const filteredData = (data as Inscription[]).filter((i) => {
+    const name = getEtudiantName(i.etudiant);
+    const matricule = getMatricule(i);
+    return (
+      (!q || `${name} ${matricule}`.toLowerCase().includes(q.toLowerCase())) &&
+      (!statut || i.statut === statut)
+    );
+  });
 
   const add = useMutation({
     mutationFn: (payload: FormData) => inscriptionsApi.create?.(payload) ?? Promise.resolve({ ...payload, id: Date.now() }),
@@ -333,20 +380,20 @@ function InscriptionsPage() {
                 <TD className="text-muted-foreground">{i.id}</TD>
                 <TD>
                   <div className="flex items-center gap-3">
-                    <Avatar name={i.etudiant} />
+                    <Avatar name={getEtudiantName(i.etudiant)} />
                     <div>
-                      <div className="font-medium">{i.etudiant}</div>
-                      <div className="font-mono text-muted-foreground text-xs">{i.matricule}</div>
+                      <div className="font-medium">{getEtudiantName(i.etudiant)}</div>
+                      <div className="font-mono text-muted-foreground text-xs">{getMatricule(i)}</div>
                     </div>
                   </div>
                 </TD>
-                <TD className="font-medium">{i.groupe}</TD>
-                <TD className="text-muted-foreground">{i.filiere}</TD>
-                <TD>{i.niveau}</TD>
+                <TD className="font-medium">{getRelationLabel(i.groupe)}</TD>
+                <TD className="text-muted-foreground">{getRelationLabel(i.filiere)}</TD>
+                <TD>{getRelationLabel(i.niveau, "niveau") || getRelationLabel((i as any).groupe?.niveau, "niveau")}</TD>
                 <TD><StatusBadge status={i.statut} /></TD>
                 <TD>{i.estRedoublant && <RefreshCw className="w-4 h-4 text-amber-600" />}</TD>
-                <TD className="text-muted-foreground">{i.dateInscription}</TD>
-                <TD><StatusBadge status={i.paye ? "paye" : "impaye"} /></TD>
+                <TD className="text-muted-foreground">{getDateInscription(i)}</TD>
+                <TD><StatusBadge status={getPaye(i) ? "paye" : "impaye"} /></TD>
                 <TD>
                   <div className="flex justify-end gap-1">
                     <ActionButton onClick={() => setDetailTarget(i)}><Eye className="w-4 h-4" /></ActionButton>
