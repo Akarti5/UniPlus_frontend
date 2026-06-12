@@ -353,9 +353,11 @@ function MatieresPage() {
       }
       
       return matieresApi.create({
-        ...payload,
-        ue: undefined,
+        code: payload.code,
+        intitule: payload.intitule,
         ueId: parseInt(String(selectedUe.id), 10), // Convert to integer
+        coefficient: parseFloat(String(payload.coefficient)), // Convert to number
+        volumeHoraire: parseInt(String(payload.volumeHoraire), 10), // Convert to integer
       });
     },
     onSuccess: () => {
@@ -369,9 +371,14 @@ function MatieresPage() {
 
   const edit = useMutation({
     mutationFn: ({ id, ...payload }: FormData & { id: Matiere["id"] }) => {
-      const { code, ueId, ...data } = payload;
+      const { code, ue, ueId, ...data } = payload;
       // PUT only accepts: intitule, coefficient, volumeHoraire, description
-      return matieresApi.update(id, data);
+      // Convert numeric fields to proper types
+      return matieresApi.update(id, {
+        intitule: data.intitule,
+        coefficient: parseFloat(String(data.coefficient)), // Convert to number
+        volumeHoraire: parseInt(String(data.volumeHoraire), 10), // Convert to integer
+      });
     },
     onSuccess: () => {
       toast.success("Matière modifiée avec succès !");
