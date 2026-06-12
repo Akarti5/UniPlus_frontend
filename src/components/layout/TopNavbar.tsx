@@ -91,7 +91,7 @@ export function TopNavbar({ onMenuClick }: { onMenuClick: () => void }) {
         </button>
 
         <button className="flex items-center gap-2 bg-background hover:bg-muted px-3 border border-border rounded-lg h-9 font-medium text-foreground text-sm">
-          <span className="hidden sm:inline">{activeAnnee?.label || "Année active"}</span>
+          <span className="hidden sm:inline">{(activeAnnee as any)?.data?.label || activeAnnee?.label || "Année active"}</span>
           <ChevronDown className="w-4 h-4 text-muted-foreground" />
         </button>
 
