@@ -344,7 +344,10 @@ function MatieresPage() {
   const [deleteTarget, setDeleteTarget] = useState<Matiere | null>(null);
 
   const add = useMutation({
-    mutationFn: (payload: FormData) => matieresApi.create(payload),
+    mutationFn: (payload: FormData) => {
+      // POST expects: ueId, code, intitule, coefficient, volumeHoraire, description
+      return matieresApi.create(payload);
+    },
     onSuccess: () => {
       toast.success("Matière ajoutée avec succès !");
       qc.invalidateQueries({ queryKey: ["matieres"] });
@@ -355,8 +358,11 @@ function MatieresPage() {
   });
 
   const edit = useMutation({
-    mutationFn: ({ id, ...payload }: FormData & { id: Matiere["id"] }) =>
-      matieresApi.update(id, payload),
+    mutationFn: ({ id, ...payload }: FormData & { id: Matiere["id"] }) => {
+      const { code, ueId, ...data } = payload;
+      // PUT only accepts: intitule, coefficient, volumeHoraire, description
+      return matieresApi.update(id, data);
+    },
     onSuccess: () => {
       toast.success("Matière modifiée avec succès !");
       qc.invalidateQueries({ queryKey: ["matieres"] });

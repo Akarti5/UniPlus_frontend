@@ -389,7 +389,10 @@ function GroupesPage() {
   const [deleteTarget, setDeleteTarget] = useState<Groupe | null>(null);
 
   const add = useMutation({
-    mutationFn: (payload: FormData) => groupesApi.create(payload),
+    mutationFn: (payload: FormData) => {
+      // POST expects: filiereId, anneeScolaireId, nom, niveauAnnee, capaciteMax
+      return groupesApi.create(payload);
+    },
     onSuccess: () => {
       toast.success("Groupe ajouté avec succès !");
       qc.invalidateQueries({ queryKey: ["groupes"] });
@@ -400,8 +403,11 @@ function GroupesPage() {
   });
 
   const edit = useMutation({
-    mutationFn: ({ id, ...payload }: FormData & { id: Groupe["id"] }) =>
-      groupesApi.update(id, payload),
+    mutationFn: ({ id, ...payload }: FormData & { id: Groupe["id"] }) => {
+      const { filiereId, anneeScolaireId, ...data } = payload;
+      // PUT only accepts: nom, niveauAnnee, capaciteMax
+      return groupesApi.update(id, data);
+    },
     onSuccess: () => {
       toast.success("Groupe modifié avec succès !");
       qc.invalidateQueries({ queryKey: ["groupes"] });

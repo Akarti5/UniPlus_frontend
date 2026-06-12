@@ -410,7 +410,7 @@ export const Route = createFileRoute("/_app/enseignants")({
   component: EnseignantsPage,
 });
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+// ─── Page ───────────────────────────��─────────────────────────────────────────
 
 function EnseignantsPage() {
   const { data: items, isFallback, refetch } = useApiList(["enseignants"], () => enseignantsApi.list?.() ?? Promise.resolve([]), [] as Enseignant[]);
@@ -456,10 +456,18 @@ function EnseignantsPage() {
   };
 
   const createMutation = useMutation({
-    mutationFn: (payload: FormData) => enseignantsApi.create?.(payload)
+    mutationFn: (payload: FormData) => {
+      const { actif, ...data } = payload;
+      // POST expects: departementId, nom, prenom, email, grade, specialite, telephone, dateEmbauche
+      return enseignantsApi.create?.(data);
+    }
   });
   const updateMutation = useMutation({
-    mutationFn: ({ id, payload }: { id: number | string; payload: FormData }) => enseignantsApi.update?.(id, payload)
+    mutationFn: ({ id, payload }: { id: number | string; payload: FormData }) => {
+      const { departementId, actif, ...data } = payload;
+      // PUT only accepts: nom, prenom, email, grade, specialite, telephone, dateEmbauche
+      return enseignantsApi.update?.(id, data);
+    }
   });
   const removeMutation = useMutation({
     mutationFn: (id: number | string) => enseignantsApi.remove?.(id)

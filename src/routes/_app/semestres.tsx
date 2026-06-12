@@ -365,7 +365,10 @@ function SemestresPage() {
   const [deleteTarget, setDeleteTarget] = useState<Semestre | null>(null);
 
   const add = useMutation({
-    mutationFn: (payload: FormData) => semestresApi.create(payload),
+    mutationFn: (payload: FormData) => {
+      // POST expects: anneeScolaireId, numero, type, dateDebut, dateFin, actif
+      return semestresApi.create(payload);
+    },
     onSuccess: () => {
       toast.success("Semestre ajouté avec succès !");
       qc.invalidateQueries({ queryKey: ["semestres"] });
@@ -376,8 +379,11 @@ function SemestresPage() {
   });
 
   const edit = useMutation({
-    mutationFn: ({ id, ...payload }: FormData & { id: Semestre["id"] }) =>
-      semestresApi.update(id, payload),
+    mutationFn: ({ id, ...payload }: FormData & { id: Semestre["id"] }) => {
+      const { anneeScolaireId, numero, type, ...data } = payload;
+      // PUT only accepts: dateDebut, dateFin, actif
+      return semestresApi.update(id, data);
+    },
     onSuccess: () => {
       toast.success("Semestre modifié avec succès !");
       qc.invalidateQueries({ queryKey: ["semestres"] });

@@ -372,7 +372,11 @@ function FilieresPage() {
   const [deleteTarget, setDeleteTarget] = useState<Filiere | null>(null);
 
   const add = useMutation({
-    mutationFn: (payload: FormData) => filieresApi.create(payload),
+    mutationFn: (payload: FormData) => {
+      const { nbGroupes, ...data } = payload;
+      // POST expects: departementId, nom, code, typeDiplome, dureeAnnees
+      return filieresApi.create(data);
+    },
     onSuccess: () => {
       toast.success("Filière ajoutée avec succès !");
       qc.invalidateQueries({ queryKey: ["filieres"] });
@@ -383,8 +387,11 @@ function FilieresPage() {
   });
 
   const edit = useMutation({
-    mutationFn: ({ id, ...payload }: FormData & { id: Filiere["id"] }) =>
-      filieresApi.update(id, payload),
+    mutationFn: ({ id, ...payload }: FormData & { id: Filiere["id"] }) => {
+      const { code, departementId, nbGroupes, ...data } = payload;
+      // PUT only accepts: nom, description, typeDiplome, dureeAnnees
+      return filieresApi.update(id, data);
+    },
     onSuccess: () => {
       toast.success("Filière modifiée avec succès !");
       qc.invalidateQueries({ queryKey: ["filieres"] });

@@ -141,7 +141,7 @@ function DetailModal({ isOpen, inscription, onClose }: { isOpen: boolean; inscri
   );
 }
 
-// ─── Form Modal (Add/Edit) ───────────────────────────────────────────────────
+// ─── Form Modal (Add/Edit) ────────────────────���──────────────────────────────
 interface FormModalProps {
   isOpen: boolean;
   mode: "add" | "edit";
@@ -316,12 +316,20 @@ function InscriptionsPage() {
   });
 
   const add = useMutation({
-    mutationFn: (payload: FormData) => inscriptionsApi.create?.(payload) ?? Promise.resolve({ ...payload, id: Date.now() }),
+    mutationFn: (payload: FormData) => {
+      const { matricule, etudiant, groupe, filiere, niveau, statut, dateInscription, paye, ...data } = payload;
+      // POST expects: etudiantId, groupeId, anneeScolaireId, estRedoublant, numeroBordereau, montantPaye
+      return inscriptionsApi.create?.(data) ?? Promise.resolve({ ...data, id: Date.now() });
+    },
     onSuccess: () => { toast.success("Inscription ajoutée avec succès !"); qc.invalidateQueries({ queryKey: ["inscriptions"] }); refetch(); setFormOpen(false); },
   });
 
   const edit = useMutation({
-    mutationFn: ({ id, ...payload }: FormData & { id: Inscription["id"] }) => inscriptionsApi.update?.(id, payload) ?? Promise.resolve({ id, ...payload }),
+    mutationFn: ({ id, ...payload }: FormData & { id: Inscription["id"] }) => {
+      const { matricule, etudiant, groupe, filiere, niveau, dateInscription, paye, ...data } = payload;
+      // PUT only accepts: statut, estRedoublant, numeroBordereau, montantPaye
+      return inscriptionsApi.update?.(id, data) ?? Promise.resolve({ id, ...data });
+    },
     onSuccess: () => { toast.success("Inscription modifiée avec succès !"); qc.invalidateQueries({ queryKey: ["inscriptions"] }); refetch(); setFormOpen(false); },
   });
 
