@@ -18,14 +18,20 @@ interface Ue {
   id: number | string;
   code: string;
   intitule: string;
-  filiere: string;
+  filiere: string | { id: number | string; nom: string; code?: string };
   semestre: number;
   typeUe: string;
   credits: number;
   nbMatieres: number;
 }
 
-type FormData = Omit<Ue, "id">;
+type FormData = Omit<Ue, "id" | "filiere"> & { filiere: string };
+
+function getFiliereName(filiere: Ue["filiere"]): string {
+  if (!filiere) return "";
+  if (typeof filiere === "object") return filiere.nom || filiere.code || "";
+  return String(filiere);
+}
 
 // ─── CSS Animations ───────────────────────────────────────────────────────────
 const ANIMATIONS = `
@@ -121,7 +127,7 @@ function FormModal({
       setForm({
         code: initial?.code ?? "",
         intitule: initial?.intitule ?? "",
-        filiere: initial?.filiere ?? "",
+        filiere: getFiliereName(initial?.filiere ?? ""),
         semestre: initial?.semestre ?? 1,
         typeUe: initial?.typeUe ?? "",
         credits: initial?.credits ?? 0,
@@ -482,7 +488,7 @@ function UePage() {
                   </span>
                 </TD>
                 <TD className="font-medium">{u.intitule}</TD>
-                <TD>{u.filiere}</TD>
+                <TD>{getFiliereName(u.filiere)}</TD>
                 <TD>S{u.semestre}</TD>
                 <TD>
                   <StatusBadge status={u.typeUe} />

@@ -16,12 +16,18 @@ interface Matiere {
   id: number | string;
   code: string;
   intitule: string;
-  ue: string;
+  ue: string | { id: number | string; code: string; intitule?: string };
   coefficient: number;
   volumeHoraire: number;
 }
 
-type FormData = Omit<Matiere, "id">;
+type FormData = Omit<Matiere, "id" | "ue"> & { ue: string };
+
+function getUeLabel(ue: Matiere["ue"]): string {
+  if (!ue) return "";
+  if (typeof ue === "object") return ue.code || ue.intitule || "";
+  return String(ue);
+}
 
 // ─── CSS Animations ───────────────────────────────────────────────────────────
 const ANIMATIONS = `
@@ -115,7 +121,7 @@ function FormModal({
       setForm({
         code: initial?.code ?? "",
         intitule: initial?.intitule ?? "",
-        ue: initial?.ue ?? "",
+        ue: getUeLabel(initial?.ue ?? ""),
         coefficient: initial?.coefficient ?? 1,
         volumeHoraire: initial?.volumeHoraire ?? 0,
       });
@@ -437,7 +443,7 @@ function MatieresPage() {
                   </span>
                 </TD>
                 <TD className="font-medium">{m.intitule}</TD>
-                <TD>{m.ue}</TD>
+                <TD>{getUeLabel(m.ue)}</TD>
                 <TD>{m.coefficient}</TD>
                 <TD>{m.volumeHoraire}h</TD>
                 <TD>
