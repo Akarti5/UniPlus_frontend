@@ -419,7 +419,7 @@ export const Route = createFileRoute("/_app/affectations")({
 
 function AffectationsPage() {
   // ── Fetch data from API ──────────────────────────────────────────────────────
-  const { data: affectationsData, refetch: refetchAffectations } = useQuery({
+  const { data: affectationsData, refetch: refetchAffectations, error: affectError, isLoading: affectLoading } = useQuery({
     queryKey: ["affectations"],
     queryFn: async () => {
       const res = await affectationsApi.list();
@@ -620,45 +620,55 @@ function AffectationsPage() {
             </TR>
           </THead>
           <tbody>
-            {rows.map((a) => (
-              <TR key={a.id}>
-                <TD className="text-muted-foreground">{a.id}</TD>
-                <TD className="font-medium">{a.enseignant}</TD>
-                <TD>{a.matiere}</TD>
-                <TD className="font-mono">{a.groupe}</TD>
-                <TD>{a.semestre}</TD>
-                <TD>{a.annee}</TD>
-                <TD>
-                  <div className="flex justify-end gap-1">
-                    <ActionButton
-                      onClick={() => openEdit(a)}
-                      aria-label={`Modifier l'affectation de ${a.enseignant}`}
-                      title={`Modifier l'affectation de ${a.enseignant}`}
-                    >
-                      <Pencil className="w-4 h-4" aria-hidden="true" />
-                    </ActionButton>
-                    <ActionButton
-                      variant="danger"
-                      onClick={() => setDeleteTarget(a)}
-                      aria-label={`Supprimer l'affectation de ${a.enseignant}`}
-                      title={`Supprimer l'affectation de ${a.enseignant}`}
-                    >
-                      <Trash2 className="w-4 h-4" aria-hidden="true" />
-                    </ActionButton>
-                  </div>
+            {affectLoading ? (
+              <TR>
+                <TD colSpan={7} className="text-center py-8 text-muted-foreground">
+                  <Loader className="w-5 h-5 mx-auto mb-2 anim-spin" />
+                  Chargement des affectations...
                 </TD>
               </TR>
-            ))}
-
-            {rows.length === 0 && (
-              <tr>
-                <td
-                  colSpan={7}
-                  className="py-10 text-gray-400 text-sm text-center"
-                >
-                  Aucune affectation ne correspond aux filtres sélectionnés.
-                </td>
-              </tr>
+            ) : affectError ? (
+              <TR>
+                <TD colSpan={7} className="text-center py-8 text-red-600">
+                  Erreur: {String(affectError)}
+                </TD>
+              </TR>
+            ) : rows.length === 0 ? (
+              <TR>
+                <TD colSpan={7} className="text-center py-8 text-muted-foreground">
+                  Aucune affectation trouvée
+                </TD>
+              </TR>
+            ) : (
+              rows.map((a) => (
+                <TR key={a.id}>
+                  <TD className="text-muted-foreground">{a.id}</TD>
+                  <TD className="font-medium">{a.enseignant}</TD>
+                  <TD>{a.matiere}</TD>
+                  <TD className="font-mono">{a.groupe}</TD>
+                  <TD>{a.semestre}</TD>
+                  <TD>{a.annee}</TD>
+                  <TD>
+                    <div className="flex justify-end gap-1">
+                      <ActionButton
+                        onClick={() => openEdit(a)}
+                        aria-label={`Modifier l'affectation de ${a.enseignant}`}
+                        title={`Modifier l'affectation de ${a.enseignant}`}
+                      >
+                        <Pencil className="w-4 h-4" aria-hidden="true" />
+                      </ActionButton>
+                      <ActionButton
+                        variant="danger"
+                        onClick={() => setDeleteTarget(a)}
+                        aria-label={`Supprimer l'affectation de ${a.enseignant}`}
+                        title={`Supprimer l'affectation de ${a.enseignant}`}
+                      >
+                        <Trash2 className="w-4 h-4" aria-hidden="true" />
+                      </ActionButton>
+                    </div>
+                  </TD>
+                </TR>
+              ))
             )}
           </tbody>
         </DataTable>
