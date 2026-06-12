@@ -7,10 +7,11 @@ import { DataTable, THead, TH, TR, TD, ActionButton } from "@/components/ui/data
 import { StatusBadge } from "@/components/ui/badge-status";
 import { ApiStatusBanner } from "@/components/ApiStatusBanner";
 import { useApiList } from "@/lib/api/use-api-list";
-import { ueApi } from "@/lib/api/endpoints";
+import { ueApi , filieresApi } from "@/lib/api/endpoints";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
+
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface Ue {
@@ -196,7 +197,7 @@ function FormModal({
                 className={inputCls}
               >
                 <option value="">Sélectionner une filière</option>
-                {filieres.map((f) => (
+                {filieresApi.map((f) => (
                   <option key={f.id} value={f.nom}>
                     {f.nom}
                   </option>
@@ -437,7 +438,7 @@ function UePage() {
         <FilterBar>
           <SelectInput>
             <option>Toutes les filières</option>
-            {filieres.map((f) => (
+            {filieresApi.map((f) => (
               <option key={f.id}>{f.nom}</option>
             ))}
           </SelectInput>

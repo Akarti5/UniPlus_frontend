@@ -151,3 +151,11 @@ export const reportsApi = {
   bulletin: (inscriptionId: string | number, semestreId: string | number) =>
     api<any>(`${API_BASE_URL}/reports/bulletin-semestre/${inscriptionId}/${semestreId}`),
 };
+
+export const affectationsapi = {
+  list: (params?: { page?: number; limit?: number }) => api<any>(`${API_BASE_URL}/affectations`, { query: params }),
+  get: (id: string | number) => api<any>(`${API_BASE_URL}/affectations/${id}`),
+  create: (data: any) => api<any>(`${API_BASE_URL}/affectations`, { method: "POST", body: data }),
+  update: (id: string | number, data: any) => api<any>(`${API_BASE_URL}/affectations/${id}`, { method: "PUT", body: data }),
+  remove: (id: string | number) => api<void>(`${API_BASE_URL}/affectations/${id}`, { method: "DELETE" }),
+};

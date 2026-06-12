@@ -128,6 +128,7 @@ function FormModal({
     if (!canSubmit) return;
     onSave({ ...form, ...(initial?.id !== undefined ? { id: initial.id } : {}) });
   };
+  const [ues, setUes] = useState<{ id: number | string; code: string; intitule: string }[]>([]);
 
   return (
     <>
@@ -355,7 +356,7 @@ function MatieresPage() {
   });
 
   const del = useMutation({
-    mutationFn: (id: Matiere["id"]) => matieresApi.remove(id),
+    mutationFn: (id: Matiere["id"]) => matieresApi.remove?.(id) ?? Promise.resolve(id),
     onSuccess: () => {
       toast.success("Matière supprimée avec succès !");
       qc.invalidateQueries({ queryKey: ["matieres"] });
