@@ -21,7 +21,7 @@ interface Matiere {
   volumeHoraire: number;
 }
 
-type FormData = Omit<Matiere, "id" | "ue"> & { ue: string };
+type FormData = Omit<Matiere, "id"> & { ue: string };
 
 function getUeLabel(ue: Matiere["ue"]): string {
   if (!ue) return "";
@@ -345,8 +345,18 @@ function MatieresPage() {
 
   const add = useMutation({
     mutationFn: (payload: FormData) => {
-      // POST expects: ueId, code, intitule, coefficient, volumeHoraire, description
-      return matieresApi.create(payload);
+      // POST expects: ueId (integer), code, intitule, coefficient, volumeHoraire, description
+      // Find the UE ID from the code
+      const selectedUe = ues.find((u) => u.code === payload.ue);
+      if (!selectedUe) {
+        throw new Error("UE sélectionnée non trouvée");
+      }
+      
+      return matieresApi.create({
+        ...payload,
+        ue: undefined,
+        ueId: parseInt(String(selectedUe.id), 10), // Convert to integer
+      });
     },
     onSuccess: () => {
       toast.success("Matière ajoutée avec succès !");
