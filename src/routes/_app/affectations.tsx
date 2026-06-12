@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Plus, Pencil, Trash2, X, Check, AlertTriangle, Loader } from "lucide-react";
+import { Plus, Trash2, X, Check, AlertTriangle, Loader } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/stat-card";
 import { FilterBar, SelectInput } from "@/components/ui/filter-bar";
@@ -489,7 +489,6 @@ function AffectationsPage() {
   });
 
   // ── Update mutation ─────────────────────────────────────────────────────
-  // API doesn't support PUT, so we delete the old one and create a new one
   const deleteMutation = useMutation({
     mutationFn: (id: number) => affectationsApi.remove(id),
     onSuccess: () => {
@@ -625,13 +624,6 @@ function AffectationsPage() {
                   <TD>{a.annee}</TD>
                   <TD>
                     <div className="flex justify-end gap-1">
-                      <ActionButton
-                        onClick={() => openEdit(a)}
-                        aria-label={`Modifier l'affectation de ${a.enseignant}`}
-                        title={`Modifier l'affectation de ${a.enseignant}`}
-                      >
-                        <Pencil className="w-4 h-4" aria-hidden="true" />
-                      </ActionButton>
                       <ActionButton
                         variant="danger"
                         onClick={() => setDeleteTarget(a)}
