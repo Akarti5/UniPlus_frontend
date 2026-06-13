@@ -219,10 +219,9 @@ function FormModal({
                 className={inputCls}
               >
                 <option value="">Sélectionner...</option>
-                <option value="Licence">Licence</option>
-                <option value="Master">Master</option>
-                <option value="Doctorat">Doctorat</option>
-                <option value="BTS">BTS</option>
+                <option value="L">Licence</option>
+                <option value="M">Master</option>
+              
               </select>
             </Field>
 
