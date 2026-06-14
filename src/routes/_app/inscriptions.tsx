@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Plus, Pencil, Trash2, X, Check, AlertTriangle, Eye, RefreshCw } from "lucide-react";
+import { Plus, Pencil, Trash2, X, Check, AlertTriangle, Eye, RefreshCw, Search } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/stat-card";
 import { FilterBar, SearchInput, SelectInput } from "@/components/ui/filter-bar";
@@ -7,7 +7,7 @@ import { DataTable, THead, TH, TR, TD, Avatar, ActionButton } from "@/components
 import { StatusBadge } from "@/components/ui/badge-status";
 import { ApiStatusBanner } from "@/components/ApiStatusBanner";
 import { useApiList } from "@/lib/api/use-api-list";
-import { inscriptionsApi, anneesApi, groupesApi } from "@/lib/api/endpoints";
+import { inscriptionsApi, anneesApi, groupesApi, etudiantsApi } from "@/lib/api/endpoints";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
@@ -162,12 +162,25 @@ interface FormModalProps {
   onCancel: () => void;
   isSaving: boolean;
   groupes: any[];
+  etudiants: any[];
 }
 
-function FormModal({ isOpen, mode, initial, onSave, onCancel, isSaving, groupes }: FormModalProps) {
-  const [form, setForm] = useState<FormData>({
+function FormModal({ isOpen, mode, initial, onSave, onCancel, isSaving, groupes, etudiants }: FormModalProps) {
+  const [form, setForm] = useState<FormData & { etudiantId?: number }>({
     etudiant: "", matricule: "", groupe: "", filiere: "", niveau: "",
     statut: "actif", estRedoublant: false, dateInscription: "", paye: false,
+    etudiantId: undefined,
+  });
+
+  const [etudiantSearch, setEtudiantSearch] = useState("");
+  const [showEtudiantList, setShowEtudiantList] = useState(false);
+
+  // Filter etudiants based on search
+  const filteredEtudiants = etudiants.filter((e) => {
+    const fullName = `${e.prenom || ""} ${e.nom || ""}`.toLowerCase();
+    const matricule = (e.matricule || "").toLowerCase();
+    const search = etudiantSearch.toLowerCase();
+    return fullName.includes(search) || matricule.includes(search);
   });
 
   useEffect(() => {
@@ -182,19 +195,36 @@ function FormModal({ isOpen, mode, initial, onSave, onCancel, isSaving, groupes 
         estRedoublant: initial.estRedoublant ?? false,
         dateInscription: getDateInscription(initial),
         paye: getPaye(initial),
+        etudiantId: (initial.etudiant as any)?.id,
       });
+      setEtudiantSearch("");
+      setShowEtudiantList(false);
     } else if (isOpen) {
-      setForm({ etudiant: "", matricule: "", groupe: "", filiere: "", niveau: "", statut: "actif", estRedoublant: false, dateInscription: "", paye: false });
+      setForm({ etudiant: "", matricule: "", groupe: "", filiere: "", niveau: "", statut: "actif", estRedoublant: false, dateInscription: "", paye: false, etudiantId: undefined });
+      setEtudiantSearch("");
+      setShowEtudiantList(false);
     }
   }, [isOpen, initial]);
 
   if (!isOpen) return null;
 
-  const canSubmit = form.etudiant.trim() !== "" && form.matricule.trim() !== "" && !isSaving;
+  const canSubmit = form.etudiantId !== undefined && form.groupe.trim() !== "" && !isSaving;
+
+  const handleSelectEtudiant = (etudiant: any) => {
+    setForm(f => ({
+      ...f,
+      etudiantId: etudiant.id,
+      etudiant: `${etudiant.prenom || ""} ${etudiant.nom || ""}`.trim(),
+      matricule: etudiant.matricule || "",
+    }));
+    setEtudiantSearch("");
+    setShowEtudiantList(false);
+  };
 
   const handleSubmit = () => {
     if (!canSubmit) return;
-    onSave({ ...form, ...(initial?.id !== undefined ? { id: initial.id } : {}) });
+    const { etudiantId, ...rest } = form;
+    onSave({ ...rest, ...(initial?.id !== undefined ? { id: initial.id } : {}) });
   };
 
   return (
@@ -211,15 +241,56 @@ function FormModal({ isOpen, mode, initial, onSave, onCancel, isSaving, groupes 
           </div>
 
           <div className="space-y-4 px-6 py-5">
-            <Field label="Nom de l'étudiant *" htmlFor="etudiant">
-              <input id="etudiant" value={form.etudiant} onChange={e => setForm(f => ({...f, etudiant: e.target.value}))} placeholder="Ex : Jean Dupont" className={inputCls} />
+            <Field label="Sélectionner étudiant *" htmlFor="etudiant-search">
+              <div className="relative">
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      id="etudiant-search"
+                      type="text"
+                      placeholder="Nom ou matricule..."
+                      value={etudiantSearch}
+                      onChange={e => {
+                        setEtudiantSearch(e.target.value);
+                        setShowEtudiantList(true);
+                      }}
+                      onFocus={() => setShowEtudiantList(true)}
+                      className={inputCls}
+                    />
+                    <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                  </div>
+                </div>
+
+                {showEtudiantList && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-10 max-h-48 overflow-y-auto">
+                    {filteredEtudiants.length > 0 ? (
+                      filteredEtudiants.map(e => (
+                        <button
+                          key={e.id}
+                          type="button"
+                          onClick={() => handleSelectEtudiant(e)}
+                          className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-700 last:border-b-0 transition-colors"
+                        >
+                          <div className="font-medium">{e.prenom} {e.nom}</div>
+                          <div className="text-xs text-gray-500">{e.matricule}</div>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="px-4 py-3 text-sm text-gray-500 text-center">Aucun étudiant trouvé</div>
+                    )}
+                  </div>
+                )}
+              </div>
             </Field>
 
-            <Field label="Matricule *" htmlFor="matricule">
-              <input id="matricule" value={form.matricule} onChange={e => setForm(f => ({...f, matricule: e.target.value.toUpperCase()}))} placeholder="Ex : U2024001" className={inputCls + " font-mono"} />
-            </Field>
+            {form.etudiant && (
+              <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg px-3 py-2 text-sm">
+                <div className="font-medium text-blue-900 dark:text-blue-100">{form.etudiant}</div>
+                <div className="text-blue-700 dark:text-blue-300 font-mono">{form.matricule}</div>
+              </div>
+            )}
 
-            <Field label="Groupe" htmlFor="groupe">
+            <Field label="Groupe *" htmlFor="groupe">
               <select id="groupe" value={form.groupe} onChange={e => setForm(f => ({...f, groupe: e.target.value}))} title="Groupe" aria-label="Groupe" className={inputCls}>
                 <option value="">Sélectionner un groupe</option>
                 {groupes.map(g => <option key={g.id} value={g.nom}>{g.nom}</option>)}
@@ -315,6 +386,7 @@ function InscriptionsPage() {
 
   const { data: anneesData } = useApiList(["annees"], () => anneesApi.list?.() ?? Promise.resolve([]), []);
   const { data: groupesData } = useApiList(["groupes"], () => groupesApi.list?.() ?? Promise.resolve([]), []);
+  const { data: etudiantsData } = useApiList(["etudiants"], () => etudiantsApi.list?.() ?? Promise.resolve([]), []);
 
   const qc = useQueryClient();
 
@@ -328,16 +400,22 @@ function InscriptionsPage() {
   });
 
   const add = useMutation({
-    mutationFn: (payload: FormData) => {
-      const { matricule, etudiant, groupe: groupeLabel, filiere, niveau, statut, dateInscription, paye, ...data } = payload;
+    mutationFn: (payload: any) => {
+      const { matricule, etudiant, groupe: groupeLabel, filiere, niveau, statut, dateInscription, paye, etudiantId, ...data } = payload;
       const matchedGroupe = (groupesData as any[]).find((g) => g.nom === groupeLabel || String(g.id) === String(groupeLabel));
       const niveauAnneeId = matchedGroupe?.niveauAnneeId ?? matchedGroupe?.niveauAnnee?.id;
       const anneeScolaireId = matchedGroupe?.anneeScolaireId ?? matchedGroupe?.anneeScolaire?.id;
+      
+      if (!etudiantId) {
+        throw new Error("Sélectionnez un étudiant valide");
+      }
       if (!niveauAnneeId || !matchedGroupe?.id) {
         throw new Error("niveauAnneeId requis — sélectionnez un groupe valide");
       }
+      
       return inscriptionsApi.create({
         ...data,
+        etudiantId: Number(etudiantId),
         groupeId: Number(matchedGroupe.id),
         niveauAnneeId: Number(niveauAnneeId),
         anneeScolaireId: Number(anneeScolaireId),
@@ -437,7 +515,7 @@ function InscriptionsPage() {
         </DataTable>
       </div>
 
-      <FormModal isOpen={formOpen} mode={formMode} initial={formInitial} onSave={handleSave} onCancel={() => setFormOpen(false)} isSaving={add.isPending || edit.isPending} groupes={groupesData} />
+      <FormModal isOpen={formOpen} mode={formMode} initial={formInitial} onSave={handleSave} onCancel={() => setFormOpen(false)} isSaving={add.isPending || edit.isPending} groupes={groupesData} etudiants={etudiantsData} />
 
       <DeleteDialog isOpen={!!deleteTarget} target={deleteTarget} onConfirm={() => deleteTarget && del.mutate(deleteTarget.id)} onCancel={() => setDeleteTarget(null)} isDeleting={del.isPending} />
 
