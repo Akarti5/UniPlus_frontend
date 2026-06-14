@@ -11,25 +11,25 @@ import { ueApi , filieresApi } from "@/lib/api/endpoints";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
-
-
-// ─── Types ───────────────────────────────────────────────────────────────────
+import { NIVEAU_CODES } from "@/lib/lmd";
 interface Ue {
   id: number | string;
   code: string;
   intitule: string;
   filiere: string | { id: number | string; nom: string; code?: string };
-  semestreNumero: number;
+  niveauCode: string;
   typeUe: string;
   creditsEcts: number;
   nbMatieres?: number;
+  /** @deprecated use niveauCode */
+  semestre?: number;
 }
 
 type FormData = {
   code: string;
   intitule: string;
   filiereId: number | "";
-  semestreNumero: number;
+  niveauCode: string;
   typeUe: string;
   creditsEcts: number;
 };
@@ -123,7 +123,7 @@ function FormModal({
     code: "",
     intitule: "",
     filiereId: "",
-    semestreNumero: 1,
+    niveauCode: "L1",
     typeUe: "",
     creditsEcts: 0,
   });
@@ -144,7 +144,7 @@ function FormModal({
         code: initial?.code ?? "",
         intitule: initial?.intitule ?? "",
         filiereId,
-        semestreNumero: initial?.semestreNumero ?? 1,
+        niveauCode: initial?.niveauCode ?? "L1",
         typeUe: initial?.typeUe ?? "",
         creditsEcts: initial?.creditsEcts ?? 0,
       });
@@ -153,7 +153,7 @@ function FormModal({
 
   if (!isOpen) return null;
 
-  const canSubmit = form.code.trim() !== "" && form.intitule.trim() !== "" && form.filiereId !== "" && form.semestreNumero >= 1 && form.semestreNumero <= 10 && !isSaving;
+  const canSubmit = form.code.trim() !== "" && form.intitule.trim() !== "" && form.filiereId !== "" && form.niveauCode !== "" && !isSaving;
 
   const handleSubmit = () => {
     if (!canSubmit) return;
@@ -232,16 +232,16 @@ function FormModal({
               </select>
             </Field>
 
-            <Field label="Semestre *" htmlFor="ue-semestre">
+            <Field label="Niveau *" htmlFor="ue-niveau">
               <select
-                id="ue-semestre"
-                value={form.semestreNumero}
-                onChange={(e) => setForm((f) => ({ ...f, semestreNumero: +e.target.value }))}
-                title="Semestre (1-10)"
+                id="ue-niveau"
+                value={form.niveauCode}
+                onChange={(e) => setForm((f) => ({ ...f, niveauCode: e.target.value }))}
+                title="Niveau (L1–M2)"
                 className={inputCls}
               >
-                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((s) => (
-                  <option key={s} value={s}>Semestre {s}</option>
+                {NIVEAU_CODES.map((n) => (
+                  <option key={n} value={n}>{n}</option>
                 ))}
               </select>
             </Field>
@@ -387,7 +387,7 @@ function UePage() {
 
   const add = useMutation({
     mutationFn: (payload: FormData) => {
-      // POST expects: filiereId, semestreNumero, code, intitule, creditsEcts, typeUe
+      // POST expects: filiereId, niveauCode, code, intitule, creditsEcts, typeUe
       return ueApi.create(payload);
     },
     onSuccess: () => {
@@ -401,7 +401,7 @@ function UePage() {
 
   const edit = useMutation({
     mutationFn: ({ id, ...payload }: FormData & { id: Ue["id"] }) => {
-      const { code, filiereId, semestreNumero, ...data } = payload;
+      const { code, filiereId, niveauCode, ...data } = payload;
       // PUT only accepts: intitule, creditsEcts, typeUe
       return ueApi.update(id, data);
     },
@@ -466,9 +466,9 @@ function UePage() {
             ))}
           </SelectInput>
           <SelectInput>
-            <option>Tous les semestres</option>
-            {[1, 2, 3, 4, 5, 6].map((s) => (
-              <option key={s}>S{s}</option>
+            <option value="">Tous les niveaux</option>
+            {NIVEAU_CODES.map((n) => (
+              <option key={n} value={n}>{n}</option>
             ))}
           </SelectInput>
         </FilterBar>
@@ -482,7 +482,7 @@ function UePage() {
               <TH>Code</TH>
               <TH>Intitulé</TH>
               <TH>Filière</TH>
-              <TH>Semestre</TH>
+              <TH>Niveau</TH>
               <TH>Type</TH>
               <TH>ECTS</TH>
               <TH>Matières</TH>
@@ -500,11 +500,11 @@ function UePage() {
                 </TD>
                 <TD className="font-medium">{u.intitule}</TD>
                 <TD>{getFiliereName(u.filiere)}</TD>
-                <TD>S{u.semestre}</TD>
+                <TD>{u.niveauCode ?? u.semestre ?? "—"}</TD>
                 <TD>
                   <StatusBadge status={u.typeUe} />
                 </TD>
-                <TD>{u.credits}</TD>
+                <TD>{u.creditsEcts ?? (u as any).credits}</TD>
                 <TD>{u.nbMatieres}</TD>
                 <TD>
                   <div className="flex justify-end gap-1">

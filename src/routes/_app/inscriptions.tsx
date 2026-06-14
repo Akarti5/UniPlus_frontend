@@ -52,6 +52,18 @@ function getRelationLabel(value: unknown, key = "nom"): string {
   return String(value);
 }
 
+function getNiveauLabel(item: { niveau?: unknown; niveauAnnee?: unknown; groupe?: unknown }): string {
+  if (item.niveauAnnee && typeof item.niveauAnnee === "object") {
+    return String((item.niveauAnnee as { code?: string }).code ?? "");
+  }
+  if (item.niveau) return getRelationLabel(item.niveau, "niveau") || getRelationLabel(item.niveau, "code");
+  if (item.groupe && typeof item.groupe === "object") {
+    const g = item.groupe as { niveauAnnee?: { code?: string } };
+    if (g.niveauAnnee?.code) return g.niveauAnnee.code;
+  }
+  return "";
+}
+
 function getPaye(item: { paye?: boolean; montantPaye?: number; datePaiement?: string }): boolean {
   if (typeof item.paye === "boolean") return item.paye;
   return !!(item.montantPaye && item.montantPaye > 0) || !!item.datePaiement;
@@ -117,7 +129,7 @@ function DetailModal({ isOpen, inscription, onClose }: { isOpen: boolean; inscri
             <div className="gap-x-8 gap-y-3 grid grid-cols-2 text-sm">
               <div><strong>Groupe :</strong> {getRelationLabel(inscription.groupe)}</div>
               <div><strong>Filière :</strong> {getRelationLabel(inscription.filiere)}</div>
-              <div><strong>Niveau :</strong> {getRelationLabel(inscription.niveau, "niveau") || getRelationLabel((inscription as any).groupe?.niveau)}</div>
+              <div><strong>Niveau :</strong> {getNiveauLabel(inscription)}</div>
               <div><strong>Date :</strong> {getDateInscription(inscription)}</div>
               <div><strong>Statut :</strong> <StatusBadge status={inscription.statut} /></div>
               <div><strong>Paiement :</strong> <StatusBadge status={getPaye(inscription) ? "paye" : "impaye"} /></div>
@@ -165,7 +177,7 @@ function FormModal({ isOpen, mode, initial, onSave, onCancel, isSaving, groupes 
         matricule: getMatricule(initial),
         groupe: getRelationLabel(initial.groupe),
         filiere: getRelationLabel(initial.filiere),
-        niveau: initial.niveau ? getRelationLabel(initial.niveau, "niveau") : getRelationLabel((initial as any).groupe?.niveau, "niveau"),
+        niveau: getNiveauLabel(initial),
         statut: initial.statut ?? "actif",
         estRedoublant: initial.estRedoublant ?? false,
         dateInscription: getDateInscription(initial),
@@ -317,9 +329,19 @@ function InscriptionsPage() {
 
   const add = useMutation({
     mutationFn: (payload: FormData) => {
-      const { matricule, etudiant, groupe, filiere, niveau, statut, dateInscription, paye, ...data } = payload;
-      // POST expects: etudiantId, groupeId, anneeScolaireId, estRedoublant, numeroBordereau, montantPaye
-      return inscriptionsApi.create?.(data) ?? Promise.resolve({ ...data, id: Date.now() });
+      const { matricule, etudiant, groupe: groupeLabel, filiere, niveau, statut, dateInscription, paye, ...data } = payload;
+      const matchedGroupe = (groupesData as any[]).find((g) => g.nom === groupeLabel || String(g.id) === String(groupeLabel));
+      const niveauAnneeId = matchedGroupe?.niveauAnneeId ?? matchedGroupe?.niveauAnnee?.id;
+      const anneeScolaireId = matchedGroupe?.anneeScolaireId ?? matchedGroupe?.anneeScolaire?.id;
+      if (!niveauAnneeId || !matchedGroupe?.id) {
+        throw new Error("niveauAnneeId requis — sélectionnez un groupe valide");
+      }
+      return inscriptionsApi.create({
+        ...data,
+        groupeId: Number(matchedGroupe.id),
+        niveauAnneeId: Number(niveauAnneeId),
+        anneeScolaireId: Number(anneeScolaireId),
+      } as any);
     },
     onSuccess: () => { toast.success("Inscription ajoutée avec succès !"); qc.invalidateQueries({ queryKey: ["inscriptions"] }); refetch(); setFormOpen(false); },
   });
@@ -397,7 +419,7 @@ function InscriptionsPage() {
                 </TD>
                 <TD className="font-medium">{getRelationLabel(i.groupe)}</TD>
                 <TD className="text-muted-foreground">{getRelationLabel(i.filiere)}</TD>
-                <TD>{getRelationLabel(i.niveau, "niveau") || getRelationLabel((i as any).groupe?.niveau, "niveau")}</TD>
+                <TD>{getNiveauLabel(i)}</TD>
                 <TD><StatusBadge status={i.statut} /></TD>
                 <TD>{i.estRedoublant && <RefreshCw className="w-4 h-4 text-amber-600" />}</TD>
                 <TD className="text-muted-foreground">{getDateInscription(i)}</TD>

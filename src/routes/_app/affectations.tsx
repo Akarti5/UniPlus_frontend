@@ -4,9 +4,9 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/stat-card";
 import { FilterBar, SelectInput } from "@/components/ui/filter-bar";
 import { DataTable, THead, TH, TR, TD, ActionButton } from "@/components/ui/data-table";
-import { annees, groupes } from "@/lib/mock-data";
-import { affectationsApi, matieresApi, enseignantsApi, semestresApi } from "@/lib/api/endpoints";
+import { affectationsApi, matieresApi, enseignantsApi, anneesApi, groupesApi } from "@/lib/api/endpoints";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import type { AnneeScolaireSemestre } from "@/lib/lmd";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
 
@@ -17,13 +17,13 @@ interface AffectationResponse {
   matiereId: number;
   enseignantId: number;
   groupeId: number;
-  semestreId: number;
-  anneeScolaireId: number;
+  anneeScolaireSemestreId: number;
   matiere?: { id: number; code: string; intitule: string };
   enseignant?: { id: number; nom: string; prenom: string };
   groupe?: { id: number; nom: string };
-  semestre?: { id: number; numero: number; type: string };
-  anneeScolaire?: { id: number; label: string };
+  anneeScolaireSemestre?: AnneeScolaireSemestre & {
+    anneeScolaire?: { id: number; label: string };
+  };
 }
 
 interface Affectation {
@@ -31,8 +31,7 @@ interface Affectation {
   matiereId: number;
   enseignantId: number;
   groupeId: number;
-  semestreId: number;
-  anneeScolaireId: number;
+  anneeScolaireSemestreId: number;
   enseignant: string;
   matiere: string;
   groupe: string;
@@ -44,8 +43,7 @@ type FormData = {
   matiereId: number;
   enseignantId: number;
   groupeId: number;
-  semestreId: number;
-  anneeScolaireId: number;
+  anneeScolaireSemestreId: number;
 };
 
 // ─── CSS Animations (named classes — no inline styles) ────────────────────────
@@ -122,7 +120,8 @@ interface FormModalProps {
   isSaving: boolean;
   matieres: any[];
   enseignants: any[];
-  semestres: any[];
+  groupes: any[];
+  calendarSemestres: AnneeScolaireSemestre[];
 }
 
 function FormModal({
@@ -134,14 +133,14 @@ function FormModal({
   isSaving,
   matieres,
   enseignants,
-  semestres,
+  groupes,
+  calendarSemestres,
 }: FormModalProps) {
   const [form, setForm] = useState<FormData>({
     matiereId: 0,
     enseignantId: 0,
     groupeId: 0,
-    semestreId: 0,
-    anneeScolaireId: 0,
+    anneeScolaireSemestreId: 0,
   });
 
   useEffect(() => {
@@ -150,8 +149,7 @@ function FormModal({
         matiereId: initial?.matiereId ?? 0,
         enseignantId: initial?.enseignantId ?? 0,
         groupeId: initial?.groupeId ?? 0,
-        semestreId: initial?.semestreId ?? 0,
-        anneeScolaireId: initial?.anneeScolaireId ?? 0,
+        anneeScolaireSemestreId: initial?.anneeScolaireSemestreId ?? 0,
       });
     }
   }, [isOpen, initial]);
@@ -162,8 +160,7 @@ function FormModal({
     form.matiereId > 0 &&
     form.enseignantId > 0 &&
     form.groupeId > 0 &&
-    form.semestreId > 0 &&
-    form.anneeScolaireId > 0 &&
+    form.anneeScolaireSemestreId > 0 &&
     !isSaving;
 
   const handleSubmit = () => {
@@ -260,40 +257,24 @@ function FormModal({
                 </select>
               </Field>
 
-              <Field label="Semestre" htmlFor="aff-semestre">
+              <Field label="Semestre calendaire *" htmlFor="aff-semestre">
                 <select
                   id="aff-semestre"
-                  value={form.semestreId}
-                  onChange={(e) => setForm((f) => ({ ...f, semestreId: parseInt(e.target.value) || 0 }))}
-                  title="Semestre"
+                  value={form.anneeScolaireSemestreId}
+                  onChange={(e) => setForm((f) => ({ ...f, anneeScolaireSemestreId: parseInt(e.target.value) || 0 }))}
+                  title="Semestre calendaire (anneeScolaireSemestreId)"
                   className={inputCls}
                 >
                   <option value="0">-- Sélectionner --</option>
-                  {semestres.map((s) => (
+                  {calendarSemestres.map((s) => (
                     <option key={s.id} value={s.id}>
-                      S{s.numero}
+                      {s.semestre?.code ?? `S${s.semestre?.numero}`}
+                      {s.anneeScolaireId ? ` — année #${s.anneeScolaireId}` : ""}
                     </option>
                   ))}
                 </select>
               </Field>
             </div>
-
-            <Field label="Année académique" htmlFor="aff-annee">
-              <select
-                id="aff-annee"
-                value={form.anneeScolaireId}
-                onChange={(e) => setForm((f) => ({ ...f, anneeScolaireId: parseInt(e.target.value) || 0 }))}
-                title="Année académique"
-                className={inputCls}
-              >
-                <option value="0">-- Sélectionner --</option>
-                {annees.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.label}
-                  </option>
-                ))}
-              </select>
-            </Field>
           </div>
 
           {/* Footer */}
@@ -443,28 +424,53 @@ function AffectationsPage() {
     },
   });
 
-  const { data: semestres = [] } = useQuery({
-    queryKey: ["semestres"],
+  const { data: groupes = [] } = useQuery({
+    queryKey: ["groupes"],
     queryFn: async () => {
-      const res = await semestresApi.list();
+      const res = await groupesApi.list({ limit: 1000 }) as any;
       return res?.data?.data ?? res?.data ?? [];
     },
   });
 
-  // ── Transform API response to display format ──────────────────────────────────
-  const items: Affectation[] = (affectationsData ?? []).map((a: AffectationResponse) => ({
-    id: a.id,
-    matiereId: a.matiereId,
-    enseignantId: a.enseignantId,
-    groupeId: a.groupeId,
-    semestreId: a.semestreId,
-    anneeScolaireId: a.anneeScolaireId,
-    enseignant: a.enseignant ? `${a.enseignant.prenom} ${a.enseignant.nom}` : `Enseignant #${a.enseignantId}`,
-    matiere: a.matiere ? `${a.matiere.code} - ${a.matiere.intitule}` : `Matière #${a.matiereId}`,
-    groupe: a.groupe?.nom ?? `Groupe #${a.groupeId}`,
-    semestre: a.semestre ? `S${a.semestre.numero}` : `Semestre #${a.semestreId}`,
-    annee: a.anneeScolaire?.label ?? `Année #${a.anneeScolaireId}`,
-  }));
+  const { data: annees = [] } = useQuery({
+    queryKey: ["annees-scolaires"],
+    queryFn: async () => {
+      const res = await anneesApi.list({ limit: 1000 }) as any;
+      return res?.data?.data ?? res?.data ?? [];
+    },
+  });
+
+  const activeAnneeId = (annees as any[]).find((a) => a.actif)?.id ?? (annees as any[])[0]?.id;
+
+  const { data: calendarSemestres = [] } = useQuery({
+    queryKey: ["annee-semestres-all", activeAnneeId],
+    queryFn: async () => {
+      if (!activeAnneeId) return [];
+      const res = await anneesApi.listSemestres(activeAnneeId) as any;
+      const rows = (res?.data ?? res ?? []) as AnneeScolaireSemestre[];
+      return rows.map((r) => ({
+        ...r,
+        anneeScolaire: (annees as any[]).find((a) => a.id === r.anneeScolaireId),
+      }));
+    },
+    enabled: !!activeAnneeId,
+  });
+
+  const items: Affectation[] = (affectationsData ?? []).map((a: AffectationResponse) => {
+    const cal = a.anneeScolaireSemestre;
+    return {
+      id: a.id,
+      matiereId: a.matiereId,
+      enseignantId: a.enseignantId,
+      groupeId: a.groupeId,
+      anneeScolaireSemestreId: a.anneeScolaireSemestreId,
+      enseignant: a.enseignant ? `${a.enseignant.prenom} ${a.enseignant.nom}` : `Enseignant #${a.enseignantId}`,
+      matiere: a.matiere ? `${a.matiere.code} - ${a.matiere.intitule}` : `Matière #${a.matiereId}`,
+      groupe: a.groupe?.nom ?? `Groupe #${a.groupeId}`,
+      semestre: cal?.semestre ? `${cal.semestre.code ?? `S${cal.semestre.numero}`}` : `#${a.anneeScolaireSemestreId}`,
+      annee: cal?.anneeScolaire?.label ?? (cal ? `Année #${cal.anneeScolaireId}` : "—"),
+    };
+  });
 
   // ── Filter state ─────────────────────────────────────────────────────────
   const [filterAnnee, setFilterAnnee] = useState("");
@@ -545,7 +551,7 @@ function AffectationsPage() {
             title="Filtrer par année"
           >
             <option value="">Toutes les années</option>
-            {annees.map((a) => (
+            {(annees as any[]).map((a) => (
               <option key={a.id} value={a.label}>
                 {a.label}
               </option>
@@ -559,9 +565,9 @@ function AffectationsPage() {
             title="Filtrer par semestre"
           >
             <option value="">Tous les semestres</option>
-            {semestres.map((s) => (
-              <option key={s.id} value={`S${s.numero}`}>
-                S{s.numero}
+            {calendarSemestres.map((s) => (
+              <option key={s.id} value={s.semestre?.code ?? `S${s.semestre?.numero}`}>
+                {s.semestre?.code ?? `S${s.semestre?.numero}`}
               </option>
             ))}
           </SelectInput>
@@ -573,7 +579,7 @@ function AffectationsPage() {
             title="Filtrer par groupe"
           >
             <option value="">Tous les groupes</option>
-            {groupes.map((g) => (
+            {(groupes as any[]).map((g) => (
               <option key={g.id} value={g.nom}>
                 {g.nom}
               </option>
@@ -651,7 +657,8 @@ function AffectationsPage() {
         isSaving={addMutation.isPending}
         matieres={matieres}
         enseignants={enseignants}
-        semestres={semestres}
+        groupes={groupes}
+        calendarSemestres={calendarSemestres}
       />
 
       {/* Delete Dialog */}
