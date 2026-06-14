@@ -460,14 +460,22 @@ function InscriptionsPage() {
         throw new Error("Le groupe sélectionné n'a pas les informations requises");
       }
       
-      return inscriptionsApi.create({
+      const apiPayload: any = {
         etudiantId: Number(etudiantId),
         groupeId: Number(groupeId),
+        niveauAnneeId: Number(niveauAnneeId),
         anneeScolaireId: Number(anneeScolaireId),
         estRedoublant: Boolean(estRedoublant),
-        numeroBordereau: numeroBordereau || undefined,
-        montantPaye: montantPaye ? Number(montantPaye) : undefined,
-      } as any);
+      };
+      
+      if (numeroBordereau?.trim()) {
+        apiPayload.numeroBordereau = numeroBordereau;
+      }
+      if (montantPaye?.trim()) {
+        apiPayload.montantPaye = montantPaye;
+      }
+      
+      return inscriptionsApi.create(apiPayload);
     },
     onSuccess: () => { 
       toast.success("Inscription ajoutée avec succès !"); 
