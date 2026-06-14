@@ -166,10 +166,24 @@ interface FormModalProps {
 }
 
 function FormModal({ isOpen, mode, initial, onSave, onCancel, isSaving, groupes, etudiants }: FormModalProps) {
-  const [form, setForm] = useState<FormData & { etudiantId?: number }>({
-    etudiant: "", matricule: "", groupe: "", filiere: "", niveau: "",
-    statut: "actif", estRedoublant: false, dateInscription: "", paye: false,
+  const [form, setForm] = useState<{
+    etudiantId?: number;
+    etudiant: string;
+    matricule: string;
+    groupe: string;
+    groupeId?: number;
+    estRedoublant: boolean;
+    numeroBordereau: string;
+    montantPaye: string;
+  }>({
+    etudiant: "",
+    matricule: "",
+    groupe: "",
+    groupeId: undefined,
     etudiantId: undefined,
+    estRedoublant: false,
+    numeroBordereau: "",
+    montantPaye: "",
   });
 
   const [etudiantSearch, setEtudiantSearch] = useState("");
@@ -185,22 +199,30 @@ function FormModal({ isOpen, mode, initial, onSave, onCancel, isSaving, groupes,
 
   useEffect(() => {
     if (isOpen && initial) {
+      const matchedGroupe = (groupesData as any[]).find((g) => g.id === (initial.groupe as any)?.id);
       setForm({
         etudiant: getEtudiantName(initial.etudiant),
         matricule: getMatricule(initial),
         groupe: getRelationLabel(initial.groupe),
-        filiere: getRelationLabel(initial.filiere),
-        niveau: getNiveauLabel(initial),
-        statut: initial.statut ?? "actif",
+        groupeId: matchedGroupe?.id,
         estRedoublant: initial.estRedoublant ?? false,
-        dateInscription: getDateInscription(initial),
-        paye: getPaye(initial),
+        numeroBordereau: (initial as any)?.numeroBordereau || "",
+        montantPaye: (initial as any)?.montantPaye?.toString() || "",
         etudiantId: (initial.etudiant as any)?.id,
       });
       setEtudiantSearch("");
       setShowEtudiantList(false);
     } else if (isOpen) {
-      setForm({ etudiant: "", matricule: "", groupe: "", filiere: "", niveau: "", statut: "actif", estRedoublant: false, dateInscription: "", paye: false, etudiantId: undefined });
+      setForm({ 
+        etudiant: "", 
+        matricule: "", 
+        groupe: "", 
+        groupeId: undefined,
+        estRedoublant: false, 
+        numeroBordereau: "", 
+        montantPaye: "",
+        etudiantId: undefined 
+      });
       setEtudiantSearch("");
       setShowEtudiantList(false);
     }
@@ -208,7 +230,7 @@ function FormModal({ isOpen, mode, initial, onSave, onCancel, isSaving, groupes,
 
   if (!isOpen) return null;
 
-  const canSubmit = form.etudiantId !== undefined && form.groupe.trim() !== "" && !isSaving;
+  const canSubmit = form.etudiantId !== undefined && form.groupeId !== undefined && !isSaving;
 
   const handleSelectEtudiant = (etudiant: any) => {
     setForm(f => ({
@@ -291,34 +313,54 @@ function FormModal({ isOpen, mode, initial, onSave, onCancel, isSaving, groupes,
             )}
 
             <Field label="Groupe *" htmlFor="groupe">
-              <select id="groupe" value={form.groupe} onChange={e => setForm(f => ({...f, groupe: e.target.value}))} title="Groupe" aria-label="Groupe" className={inputCls}>
+              <select 
+                id="groupe" 
+                value={form.groupe} 
+                onChange={e => {
+                  const selectedGroupe = groupes.find(g => g.nom === e.target.value);
+                  setForm(f => ({...f, groupe: e.target.value, groupeId: selectedGroupe?.id}))
+                }} 
+                title="Groupe" 
+                aria-label="Groupe" 
+                className={inputCls}
+              >
                 <option value="">Sélectionner un groupe</option>
                 {groupes.map(g => <option key={g.id} value={g.nom}>{g.nom}</option>)}
               </select>
             </Field>
 
-            <div className="gap-4 grid grid-cols-2">
-              <Field label="Statut" htmlFor="statut">
-                <select id="statut" value={form.statut} onChange={e => setForm(f => ({...f, statut: e.target.value}))} title="Statut" aria-label="Statut" className={inputCls}>
-                  <option value="actif">Actif</option>
-                  <option value="redoublant">Redoublant</option>
-                  <option value="exclu">Exclu</option>
-                  <option value="diplome">Diplômé</option>
-                </select>
-              </Field>
-              <Field label="Date d'inscription" htmlFor="date">
-                <input id="date" type="date" value={form.dateInscription} onChange={e => setForm(f => ({...f, dateInscription: e.target.value}))} title="Date d'inscription" aria-label="Date d'inscription" className={inputCls} />
-              </Field>
-            </div>
+            <Field label="Numéro bordereau" htmlFor="bordereau">
+              <input 
+                id="bordereau" 
+                type="text" 
+                value={form.numeroBordereau} 
+                onChange={e => setForm(f => ({...f, numeroBordereau: e.target.value}))} 
+                placeholder="Ex : BRD-2024-001" 
+                className={inputCls} 
+              />
+            </Field>
+
+            <Field label="Montant payé" htmlFor="montant">
+              <input 
+                id="montant" 
+                type="number" 
+                step="0.01"
+                value={form.montantPaye} 
+                onChange={e => setForm(f => ({...f, montantPaye: e.target.value}))} 
+                placeholder="Ex : 25000" 
+                className={inputCls} 
+              />
+            </Field>
 
             <div className="flex items-center gap-3">
-              <input type="checkbox" id="redoublant" checked={form.estRedoublant} onChange={e => setForm(f => ({...f, estRedoublant: e.target.checked}))} className="w-5 h-5 accent-primary" />
+              <input 
+                type="checkbox" 
+                id="redoublant" 
+                checked={form.estRedoublant} 
+                onChange={e => setForm(f => ({...f, estRedoublant: e.target.checked}))} 
+                className="w-5 h-5 accent-primary" 
+              />
               <label htmlFor="redoublant" className="text-sm">Redoublant</label>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <input type="checkbox" id="paye" checked={form.paye} onChange={e => setForm(f => ({...f, paye: e.target.checked}))} className="w-5 h-5 accent-primary" />
-              <label htmlFor="paye" className="text-sm">Paiement effectué</label>
             </div>
           </div>
 
@@ -401,24 +443,30 @@ function InscriptionsPage() {
 
   const add = useMutation({
     mutationFn: (payload: any) => {
-      const { matricule, etudiant, groupe: groupeLabel, filiere, niveau, statut, dateInscription, paye, etudiantId, ...data } = payload;
-      const matchedGroupe = (groupesData as any[]).find((g) => g.nom === groupeLabel || String(g.id) === String(groupeLabel));
-      const niveauAnneeId = matchedGroupe?.niveauAnneeId ?? matchedGroupe?.niveauAnnee?.id;
-      const anneeScolaireId = matchedGroupe?.anneeScolaireId ?? matchedGroupe?.anneeScolaire?.id;
+      const { matricule, etudiant, groupe, groupeId, etudiantId, estRedoublant, numeroBordereau, montantPaye } = payload;
       
       if (!etudiantId) {
         throw new Error("Sélectionnez un étudiant valide");
       }
-      if (!niveauAnneeId || !matchedGroupe?.id) {
-        throw new Error("niveauAnneeId requis — sélectionnez un groupe valide");
+      if (!groupeId) {
+        throw new Error("Sélectionnez un groupe valide");
+      }
+
+      const matchedGroupe = (groupesData as any[]).find((g) => g.id === groupeId);
+      const niveauAnneeId = matchedGroupe?.niveauAnneeId ?? matchedGroupe?.niveauAnnee?.id;
+      const anneeScolaireId = matchedGroupe?.anneeScolaireId ?? matchedGroupe?.anneeScolaire?.id;
+      
+      if (!niveauAnneeId || !anneeScolaireId) {
+        throw new Error("Le groupe sélectionné n'a pas les informations requises");
       }
       
       return inscriptionsApi.create({
-        ...data,
         etudiantId: Number(etudiantId),
-        groupeId: Number(matchedGroupe.id),
-        niveauAnneeId: Number(niveauAnneeId),
+        groupeId: Number(groupeId),
         anneeScolaireId: Number(anneeScolaireId),
+        estRedoublant: Boolean(estRedoublant),
+        numeroBordereau: numeroBordereau || undefined,
+        montantPaye: montantPaye ? Number(montantPaye) : undefined,
       } as any);
     },
     onSuccess: () => { 
