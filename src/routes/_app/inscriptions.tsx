@@ -223,8 +223,8 @@ function FormModal({ isOpen, mode, initial, onSave, onCancel, isSaving, groupes,
 
   const handleSubmit = () => {
     if (!canSubmit) return;
-    const { etudiantId, ...rest } = form;
-    onSave({ ...rest, ...(initial?.id !== undefined ? { id: initial.id } : {}) });
+    const dataToSend = { ...form, ...(initial?.id !== undefined ? { id: initial.id } : {}) };
+    onSave(dataToSend);
   };
 
   return (
@@ -421,7 +421,15 @@ function InscriptionsPage() {
         anneeScolaireId: Number(anneeScolaireId),
       } as any);
     },
-    onSuccess: () => { toast.success("Inscription ajoutée avec succès !"); qc.invalidateQueries({ queryKey: ["inscriptions"] }); refetch(); setFormOpen(false); },
+    onSuccess: () => { 
+      toast.success("Inscription ajoutée avec succès !"); 
+      qc.invalidateQueries({ queryKey: ["inscriptions"] }); 
+      refetch(); 
+      setFormOpen(false); 
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Erreur lors de l'ajout");
+    }
   });
 
   const edit = useMutation({
