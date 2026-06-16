@@ -4,28 +4,25 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/stat-card";
 import { DataTable, THead, TH, TR, TD, ActionButton } from "@/components/ui/data-table";
 import { ApiStatusBanner } from "@/components/ApiStatusBanner";
-import { stages as mockStages } from "@/lib/mock-data";
-import { useApiList } from "@/lib/api/use-api-list";
-import { stagesApi } from "@/lib/api/endpoints";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { stagesApi, inscriptionsApi, anneesApi, enseignantsApi } from "@/lib/api/endpoints";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface Stage {
-  id: number | string;
-  etudiant: string;
-  annee: string;
-  entreprise: string;
-  sujet: string;
-  enseignant: string;
-  noteEncadrant: number;
-  noteSoutenance: number;
-  moyPratique: number;
-  dateSoutenance: string;
+  id: number;
+  inscriptionId: number;
+  anneeScolaireId: number;
+  enseignantId?: number | null;
+  entreprise?: string | null;
+  sujet?: string | null;
+  noteEncadrant?: number | null;
+  noteSoutenance?: number | null;
+  dateSoutenance?: string | null;
 }
 
-type FormData = Omit<Stage, "id">;
+type StageFormData = Omit<Stage, "id">;
 
 // ─── CSS Animations ───────────────────────────────────────────────────────────
 const ANIMATIONS = `
@@ -61,47 +58,71 @@ interface FormModalProps {
   isOpen: boolean;
   mode: "add" | "edit";
   initial?: Partial<Stage>;
-  onSave: (data: FormData & { id?: Stage["id"] }) => void;
+  inscriptions: any[];
+  annees: any[];
+  enseignants: any[];
+  onSave: (data: Partial<Stage>) => void;
   onCancel: () => void;
   isSaving: boolean;
 }
 
-function FormModal({ isOpen, mode, initial, onSave, onCancel, isSaving }: FormModalProps) {
-  const [form, setForm] = useState<FormData>({
-    etudiant: "",
-    annee: "",
+function FormModal({ isOpen, mode, initial, inscriptions, annees, enseignants, onSave, onCancel, isSaving }: FormModalProps) {
+  const [form, setForm] = useState<StageFormData>({
+    inscriptionId: 0,
+    anneeScolaireId: 0,
+    enseignantId: undefined,
     entreprise: "",
     sujet: "",
-    enseignant: "",
     noteEncadrant: 0,
     noteSoutenance: 0,
-    moyPratique: 0,
     dateSoutenance: "",
   });
 
   useEffect(() => {
     if (isOpen) {
       setForm({
-        etudiant: initial?.etudiant ?? "",
-        annee: initial?.annee ?? "",
+        inscriptionId: initial?.inscriptionId ?? 0,
+        anneeScolaireId: initial?.anneeScolaireId ?? 0,
+        enseignantId: initial?.enseignantId ?? undefined,
         entreprise: initial?.entreprise ?? "",
         sujet: initial?.sujet ?? "",
-        enseignant: initial?.enseignant ?? "",
         noteEncadrant: initial?.noteEncadrant ?? 0,
         noteSoutenance: initial?.noteSoutenance ?? 0,
-        moyPratique: initial?.moyPratique ?? 0,
-        dateSoutenance: initial?.dateSoutenance ?? "",
+        dateSoutenance: initial?.dateSoutenance ? initial.dateSoutenance.slice(0, 10) : "",
       });
     }
   }, [isOpen, initial]);
 
   if (!isOpen) return null;
 
-  const canSubmit = form.etudiant.trim() !== "" && form.entreprise.trim() !== "" && form.sujet.trim() !== "" && !isSaving;
+  const canSubmit = mode === "add" ? (form.inscriptionId > 0 && form.anneeScolaireId > 0 && !isSaving) : (!isSaving);
 
   const handleSubmit = () => {
     if (!canSubmit) return;
-    onSave({ ...form, ...(initial?.id !== undefined ? { id: initial.id } : {}) });
+    
+    // For update, PUT only accepts: entreprise, sujet, noteEncadrant, noteSoutenance, dateSoutenance
+    if (mode === "edit") {
+      onSave({
+        id: initial?.id,
+        entreprise: form.entreprise || undefined,
+        sujet: form.sujet || undefined,
+        noteEncadrant: form.noteEncadrant || 0,
+        noteSoutenance: form.noteSoutenance || 0,
+        dateSoutenance: form.dateSoutenance || undefined,
+      });
+    } else {
+      // POST payload
+      onSave({
+        inscriptionId: Number(form.inscriptionId),
+        anneeScolaireId: Number(form.anneeScolaireId),
+        enseignantId: form.enseignantId ? Number(form.enseignantId) : undefined,
+        entreprise: form.entreprise || undefined,
+        sujet: form.sujet || undefined,
+        noteEncadrant: form.noteEncadrant || 0,
+        noteSoutenance: form.noteSoutenance || 0,
+        dateSoutenance: form.dateSoutenance || undefined,
+      });
+    }
   };
 
   return (
@@ -109,7 +130,7 @@ function FormModal({ isOpen, mode, initial, onSave, onCancel, isSaving }: FormMo
       <style>{ANIMATIONS}</style>
       <div className="z-40 fixed inset-0 bg-black/50 backdrop-blur-sm anim-backdrop" onClick={onCancel} />
       <div className="z-50 fixed inset-0 flex justify-center items-center p-4 pointer-events-none">
-        <div className="bg-white dark:bg-gray-900 shadow-2xl rounded-2xl w-full max-w-md pointer-events-auto anim-modal">
+        <div className="bg-white dark:bg-gray-900 shadow-2xl rounded-2xl w-full max-w-md pointer-events-auto anim-modal max-h-[90vh] overflow-y-auto">
           <div className="flex justify-between items-center px-6 pt-6 pb-4 border-gray-100 dark:border-gray-800 border-b">
             <div>
               <h2 className="font-bold text-lg">
@@ -122,58 +143,71 @@ function FormModal({ isOpen, mode, initial, onSave, onCancel, isSaving }: FormMo
           </div>
 
           <div className="space-y-4 px-6 py-5">
-            <Field label="Étudiant *" htmlFor="stage-etudiant">
-              <input
-                id="stage-etudiant"
-                value={form.etudiant}
-                onChange={(e) => setForm(f => ({ ...f, etudiant: e.target.value }))}
-                placeholder="Nom complet de l'étudiant"
-                title="Nom de l'étudiant"
-                className={inputCls}
-              />
-            </Field>
+            {mode === "add" && (
+              <>
+                <Field label="Inscription *" htmlFor="stage-inscription">
+                  <select
+                    id="stage-inscription"
+                    value={form.inscriptionId || ""}
+                    onChange={(e) => setForm(f => ({ ...f, inscriptionId: Number(e.target.value) }))}
+                    className={inputCls}
+                  >
+                    <option value="">Sélectionner un étudiant</option>
+                    {inscriptions.map((i) => (
+                      <option key={i.id} value={i.id}>
+                        {i.etudiant?.nom} {i.etudiant?.prenom} ({i.etudiant?.matricule ?? `ID: ${i.id}`})
+                      </option>
+                    ))}
+                  </select>
+                </Field>
 
-            <Field label="Année" htmlFor="stage-annee">
-              <input
-                id="stage-annee"
-                value={form.annee}
-                onChange={(e) => setForm(f => ({ ...f, annee: e.target.value }))}
-                placeholder="Ex : 2025-2026"
-                title="Année académique"
-                className={inputCls}
-              />
-            </Field>
+                <Field label="Année scolaire *" htmlFor="stage-annee">
+                  <select
+                    id="stage-annee"
+                    value={form.anneeScolaireId || ""}
+                    onChange={(e) => setForm(f => ({ ...f, anneeScolaireId: Number(e.target.value) }))}
+                    className={inputCls}
+                  >
+                    <option value="">Sélectionner l'année</option>
+                    {annees.map((a) => (
+                      <option key={a.id} value={a.id}>{a.annee}</option>
+                    ))}
+                  </select>
+                </Field>
 
-            <Field label="Entreprise *" htmlFor="stage-entreprise">
+                <Field label="Encadrant" htmlFor="stage-enseignant">
+                  <select
+                    id="stage-enseignant"
+                    value={form.enseignantId || ""}
+                    onChange={(e) => setForm(f => ({ ...f, enseignantId: Number(e.target.value) }))}
+                    className={inputCls}
+                  >
+                    <option value="">Sélectionner un enseignant (optionnel)</option>
+                    {enseignants.map((ens) => (
+                      <option key={ens.id} value={ens.id}>{ens.nom} {ens.prenom}</option>
+                    ))}
+                  </select>
+                </Field>
+              </>
+            )}
+
+            <Field label="Entreprise" htmlFor="stage-entreprise">
               <input
                 id="stage-entreprise"
-                value={form.entreprise}
+                value={form.entreprise || ""}
                 onChange={(e) => setForm(f => ({ ...f, entreprise: e.target.value }))}
                 placeholder="Nom de l'entreprise"
-                title="Entreprise d'accueil"
                 className={inputCls}
               />
             </Field>
 
-            <Field label="Sujet *" htmlFor="stage-sujet">
+            <Field label="Sujet" htmlFor="stage-sujet">
               <textarea
                 id="stage-sujet"
-                value={form.sujet}
+                value={form.sujet || ""}
                 onChange={(e) => setForm(f => ({ ...f, sujet: e.target.value }))}
                 placeholder="Sujet du stage"
-                title="Sujet du stage"
                 rows={3}
-                className={inputCls}
-              />
-            </Field>
-
-            <Field label="Encadrant" htmlFor="stage-enseignant">
-              <input
-                id="stage-enseignant"
-                value={form.enseignant}
-                onChange={(e) => setForm(f => ({ ...f, enseignant: e.target.value }))}
-                placeholder="Nom de l'enseignant encadrant"
-                title="Encadrant universitaire"
                 className={inputCls}
               />
             </Field>
@@ -186,10 +220,9 @@ function FormModal({ isOpen, mode, initial, onSave, onCancel, isSaving }: FormMo
                   step="0.1"
                   min={0}
                   max={20}
-                  value={form.noteEncadrant}
+                  value={form.noteEncadrant || ""}
                   onChange={(e) => setForm(f => ({ ...f, noteEncadrant: +e.target.value }))}
                   placeholder="0.0"
-                  title="Note de l'encadrant"
                   className={inputCls}
                 />
               </Field>
@@ -200,10 +233,9 @@ function FormModal({ isOpen, mode, initial, onSave, onCancel, isSaving }: FormMo
                   step="0.1"
                   min={0}
                   max={20}
-                  value={form.noteSoutenance}
+                  value={form.noteSoutenance || ""}
                   onChange={(e) => setForm(f => ({ ...f, noteSoutenance: +e.target.value }))}
                   placeholder="0.0"
-                  title="Note de soutenance"
                   className={inputCls}
                 />
               </Field>
@@ -213,9 +245,8 @@ function FormModal({ isOpen, mode, initial, onSave, onCancel, isSaving }: FormMo
               <input
                 id="date-sout"
                 type="date"
-                value={form.dateSoutenance}
+                value={form.dateSoutenance || ""}
                 onChange={(e) => setForm(f => ({ ...f, dateSoutenance: e.target.value }))}
-                title="Date de soutenance"
                 className={inputCls}
               />
             </Field>
@@ -272,7 +303,7 @@ function DeleteDialog({ isOpen, target, onConfirm, onCancel, isDeleting }: {
             </div>
             <h3 className="mb-2 font-bold text-lg">Confirmer la suppression</h3>
             <p className="text-gray-500 dark:text-gray-400">
-              Voulez-vous supprimer le stage de <strong>{target.etudiant}</strong> ?
+              Voulez-vous supprimer le stage (ID: <strong>{target.id}</strong>) ?
             </p>
           </div>
           <div className="flex gap-3 px-6 pb-6">
@@ -308,13 +339,41 @@ export const Route = createFileRoute("/_app/stages")({
 });
 
 function StagesPage() {
-  const { data, isFallback, refetch } = useApiList(
-    ["stages"],
-    () => stagesApi.list?.() ?? Promise.resolve(mockStages),
-    mockStages
-  );
-
   const qc = useQueryClient();
+
+  const { data: stagesData, isLoading, isError, refetch } = useQuery({
+    queryKey: ["stages"],
+    queryFn: async () => {
+      const res = await stagesApi.list() as any;
+      return res?.data?.data ?? res?.data ?? [];
+    },
+  });
+
+  const { data: inscriptions = [] } = useQuery({
+    queryKey: ["inscriptions-all"],
+    queryFn: async () => {
+      const res = await inscriptionsApi.list({ limit: 1000 }) as any;
+      return res?.data?.data ?? res?.data ?? [];
+    },
+  });
+
+  const { data: annees = [] } = useQuery({
+    queryKey: ["annees-all"],
+    queryFn: async () => {
+      const res = await anneesApi.list({ limit: 100 }) as any;
+      return res?.data?.data ?? res?.data ?? [];
+    },
+  });
+
+  const { data: enseignants = [] } = useQuery({
+    queryKey: ["enseignants-all"],
+    queryFn: async () => {
+      const res = await enseignantsApi.list({ limit: 500 }) as any;
+      return res?.data?.data ?? res?.data ?? [];
+    },
+  });
+
+  const stages = (stagesData || []) as Stage[];
 
   const [formOpen, setFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<"add" | "edit">("add");
@@ -322,11 +381,7 @@ function StagesPage() {
   const [deleteTarget, setDeleteTarget] = useState<Stage | null>(null);
 
   const add = useMutation({
-    mutationFn: (payload: FormData) => {
-      const { etudiant, annee, noteSoutenance, moyPratique, dateSoutenance, ...data } = payload;
-      // POST expects: inscriptionId, anneeScolaireId, enseignantId, entreprise, sujet, noteEncadrant
-      return stagesApi.create?.(data) ?? Promise.resolve({ ...data, id: Date.now() });
-    },
+    mutationFn: (payload: any) => stagesApi.create(payload),
     onSuccess: () => {
       toast.success("Stage ajouté avec succès !");
       qc.invalidateQueries({ queryKey: ["stages"] });
@@ -337,11 +392,7 @@ function StagesPage() {
   });
 
   const edit = useMutation({
-    mutationFn: ({ id, ...payload }: FormData & { id: Stage["id"] }) => {
-      const { etudiant, annee, enseignant, noteSoutenance, moyPratique, dateSoutenance, ...data } = payload;
-      // PUT only accepts: entreprise, sujet, noteEncadrant
-      return stagesApi.update?.(id, data) ?? Promise.resolve({ id, ...data });
-    },
+    mutationFn: ({ id, ...payload }: Partial<Stage>) => stagesApi.update(id as number, payload),
     onSuccess: () => {
       toast.success("Stage modifié avec succès !");
       qc.invalidateQueries({ queryKey: ["stages"] });
@@ -352,7 +403,7 @@ function StagesPage() {
   });
 
   const del = useMutation({
-    mutationFn: (id: Stage["id"]) => stagesApi.remove?.(id) ?? Promise.resolve(id),
+    mutationFn: (id: number) => stagesApi.remove(id),
     onSuccess: () => {
       toast.success("Stage supprimé avec succès !");
       qc.invalidateQueries({ queryKey: ["stages"] });
@@ -374,11 +425,11 @@ function StagesPage() {
     setFormOpen(true);
   };
 
-  const handleSave = (data: FormData & { id?: Stage["id"] }) => {
+  const handleSave = (data: Partial<Stage>) => {
     if (formMode === "add") {
-      add.mutate(data as FormData);
+      add.mutate(data);
     } else if (data.id !== undefined) {
-      edit.mutate({ id: data.id, ...data });
+      edit.mutate(data);
     }
   };
 
@@ -387,7 +438,7 @@ function StagesPage() {
       <div>
         <PageHeader
           title="Stages"
-          subtitle={`${(data as any[]).length} stages enregistrés`}
+          subtitle={`${stages.length} stages enregistrés`}
           actions={
             <Button onClick={openAdd}>
               <Plus className="w-4 h-4" aria-hidden="true" /> Nouveau stage
@@ -395,7 +446,7 @@ function StagesPage() {
           }
         />
 
-        <ApiStatusBanner show={isFallback} />
+        <ApiStatusBanner show={isError} />
 
         <DataTable>
           <THead>
@@ -414,39 +465,56 @@ function StagesPage() {
             </TR>
           </THead>
           <tbody>
-            {(data as Stage[]).map((s) => (
-              <TR key={s.id}>
-                <TD className="text-muted-foreground">{s.id}</TD>
-                <TD className="font-medium">{s.etudiant}</TD>
-                <TD>{s.annee}</TD>
-                <TD>{s.entreprise}</TD>
-                <TD className="max-w-xs text-muted-foreground truncate">{s.sujet}</TD>
-                <TD>{s.enseignant}</TD>
-                <TD>{s.noteEncadrant}</TD>
-                <TD>{s.noteSoutenance}</TD>
-                <TD className="font-bold text-primary">{s.moyPratique.toFixed(2)}</TD>
-                <TD className="text-muted-foreground">{s.dateSoutenance}</TD>
-                <TD>
-                  <div className="flex justify-end gap-1">
-                    <ActionButton
-                      onClick={() => openEdit(s)}
-                      aria-label={`Modifier stage de ${s.etudiant}`}
-                      title={`Modifier stage de ${s.etudiant}`}
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </ActionButton>
-                    <ActionButton
-                      variant="danger"
-                      onClick={() => setDeleteTarget(s)}
-                      aria-label={`Supprimer stage de ${s.etudiant}`}
-                      title={`Supprimer stage de ${s.etudiant}`}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </ActionButton>
-                  </div>
-                </TD>
-              </TR>
-            ))}
+            {isLoading ? (
+              <TR><TD colSpan={11} className="py-8 text-center text-muted-foreground">Chargement…</TD></TR>
+            ) : stages.length === 0 ? (
+              <TR><TD colSpan={11} className="py-8 text-center text-muted-foreground">Aucun stage trouvé</TD></TR>
+            ) : stages.map((s) => {
+              const ins = inscriptions.find((i: any) => i.id === s.inscriptionId);
+              const ann = annees.find((a: any) => a.id === s.anneeScolaireId);
+              const ens = enseignants.find((e: any) => e.id === s.enseignantId);
+              const etudiantStr = ins ? `${ins.etudiant?.nom} ${ins.etudiant?.prenom}` : `Inscription #${s.inscriptionId}`;
+              const anneeStr = ann ? ann.annee : `Année #${s.anneeScolaireId}`;
+              const ensStr = ens ? `${ens.nom} ${ens.prenom}` : s.enseignantId ? `Ens #${s.enseignantId}` : "—";
+              
+              const noteEnc = s.noteEncadrant != null ? s.noteEncadrant : null;
+              const noteSout = s.noteSoutenance != null ? s.noteSoutenance : null;
+              const moyPratique = (noteEnc != null && noteSout != null) ? (noteEnc + noteSout) / 2 : null;
+
+              return (
+                <TR key={s.id}>
+                  <TD className="text-muted-foreground">{s.id}</TD>
+                  <TD className="font-medium">{etudiantStr}</TD>
+                  <TD>{anneeStr}</TD>
+                  <TD>{s.entreprise || "—"}</TD>
+                  <TD className="max-w-xs text-muted-foreground truncate" title={s.sujet || undefined}>{s.sujet || "—"}</TD>
+                  <TD>{ensStr}</TD>
+                  <TD>{noteEnc != null ? noteEnc.toFixed(2) : "—"}</TD>
+                  <TD>{noteSout != null ? noteSout.toFixed(2) : "—"}</TD>
+                  <TD className="font-bold text-primary">{moyPratique != null ? moyPratique.toFixed(2) : "—"}</TD>
+                  <TD className="text-muted-foreground">{s.dateSoutenance ? s.dateSoutenance.slice(0, 10) : "—"}</TD>
+                  <TD>
+                    <div className="flex justify-end gap-1">
+                      <ActionButton
+                        onClick={() => openEdit(s)}
+                        aria-label={`Modifier stage de ${etudiantStr}`}
+                        title={`Modifier stage de ${etudiantStr}`}
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </ActionButton>
+                      <ActionButton
+                        variant="danger"
+                        onClick={() => setDeleteTarget(s)}
+                        aria-label={`Supprimer stage de ${etudiantStr}`}
+                        title={`Supprimer stage de ${etudiantStr}`}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </ActionButton>
+                    </div>
+                  </TD>
+                </TR>
+              );
+            })}
           </tbody>
         </DataTable>
       </div>
@@ -455,6 +523,9 @@ function StagesPage() {
         isOpen={formOpen}
         mode={formMode}
         initial={formInitial}
+        inscriptions={inscriptions}
+        annees={annees}
+        enseignants={enseignants}
         onSave={handleSave}
         onCancel={() => setFormOpen(false)}
         isSaving={add.isPending || edit.isPending}

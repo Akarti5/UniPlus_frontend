@@ -1,14 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Plus, Eye, X } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/stat-card";
 import { FilterBar, SelectInput } from "@/components/ui/filter-bar";
 import { DataTable, THead, TH, TR, TD, ActionButton } from "@/components/ui/data-table";
 import { ApiStatusBanner } from "@/components/ApiStatusBanner";
-import { etudiants } from "@/lib/mock-data";
-import { presencesApi, affectationsApi, anneesApi } from "@/lib/api/endpoints";
+import { presencesApi, affectationsApi, anneesApi, inscriptionsApi } from "@/lib/api/endpoints";
 import type { AnneeScolaireSemestre } from "@/lib/lmd";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -65,7 +64,7 @@ function NewSeanceModal({
   const create = useMutation({
     mutationFn: () => presencesApi.createSheet({
       affectationCoursId: Number(affectationId),
-      anneeScolaireSemestreId: Number(calendarSemestreId),
+      semestreId: Number(calendarSemestreId),
       dateSeance,
       titreSeance: titreSeance || undefined,
     }),
@@ -270,13 +269,61 @@ function PresencesPage() {
 }
 
 function SaisiePresence({ seance, onClose }: { seance: any; onClose: () => void }) {
-  const [rows, setRows] = useState<EtudiantPresenceRow[]>(
-    etudiants.slice(0, 16).map((e: any) => ({
-      ...e,
-      statut: "present" as StatutPresence,
-      justif: "",
-    }))
-  );
+  const [rows, setRows] = useState<EtudiantPresenceRow[]>([]);
+
+  const { data: inscriptions = [] } = useQuery({
+    queryKey: ["inscriptions-by-group", seance?.affectationCours?.groupeId],
+    queryFn: async () => {
+      if (!seance?.affectationCours?.groupeId) return [];
+      const res = await inscriptionsApi.byGroup(seance.affectationCours.groupeId) as any;
+      const list = res?.data?.data ?? res?.data ?? res ?? [];
+      return Array.isArray(list) ? list : [];
+    },
+    enabled: !!seance?.affectationCours?.groupeId,
+  });
+
+  const { data: existingPresences = [] } = useQuery({
+    queryKey: ["presences-for-sheet", seance?.id],
+    queryFn: async () => {
+      if (!seance?.id) return [];
+      const res = await presencesApi.forSheet(seance.id) as any;
+      return res?.data?.data ?? res?.data ?? res ?? [];
+    },
+    enabled: !!seance?.id,
+  });
+
+  useEffect(() => {
+    if (inscriptions.length > 0) {
+      const newRows = inscriptions.map((ins: any) => {
+        const existing = existingPresences.find((p: any) => p.inscriptionId === ins.id);
+        return {
+          id: ins.id,
+          matricule: ins.etudiant?.matricule ?? ins.matricule ?? "",
+          nom: ins.etudiant?.nom ?? "",
+          prenom: ins.etudiant?.prenom ?? "",
+          statut: (existing?.statut || "present") as StatutPresence,
+          justif: existing?.justification || "",
+        };
+      });
+      setRows(newRows);
+    }
+  }, [inscriptions, existingPresences]);
+
+  const save = useMutation({
+    mutationFn: () => presencesApi.bulk({
+      feuilleId: seance.id,
+      presences: rows.map((r) => ({
+        inscriptionId: Number(r.id),
+        statut: r.statut,
+        justification: r.statut === "justifie" ? r.justif : undefined,
+      })),
+    }),
+    onSuccess: () => {
+      toast.success("Présences enregistrées avec succès !");
+      onClose();
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Erreur d'enregistrement"),
+  });
 
   const count = (s: StatutPresence) => rows.filter((r) => r.statut === s).length;
 
@@ -291,13 +338,15 @@ function SaisiePresence({ seance, onClose }: { seance: any; onClose: () => void 
     <>
       <div className="bg-card shadow-sm mb-4 p-4 border border-border rounded-xl">
         <div className="flex flex-wrap items-center gap-4 text-sm">
-          <div><span className="text-muted-foreground">Matière :</span> <strong>{seance?.matiere || "Algorithmique"}</strong></div>
-          <div><span className="text-muted-foreground">Groupe :</span> <strong>{seance?.groupe || "L1-INF-G1"}</strong></div>
-          <div><span className="text-muted-foreground">Date :</span> <strong>{seance?.date || "2026-01-15"}</strong></div>
+          <div><span className="text-muted-foreground">Matière :</span> <strong>{seance?.affectationCours?.matiere?.intitule || seance?.titreSeance || "—"}</strong></div>
+          <div><span className="text-muted-foreground">Groupe :</span> <strong>{seance?.affectationCours?.groupe?.nom || "—"}</strong></div>
+          <div><span className="text-muted-foreground">Date :</span> <strong>{seance?.dateSeance?.slice(0, 10) || "—"}</strong></div>
           <div className="flex gap-2 ml-auto">
             <Button variant="secondary" size="sm" onClick={() => setRows(p => p.map(r => ({ ...r, statut: "present" })))}>Tous présents</Button>
             <Button variant="secondary" size="sm" onClick={() => setRows(p => p.map(r => ({ ...r, statut: "absent" })))}>Tous absents</Button>
-            <Button size="sm">Enregistrer</Button>
+            <Button size="sm" onClick={() => save.mutate()} disabled={save.isPending}>
+              {save.isPending ? "Enregistrement…" : "Enregistrer"}
+            </Button>
           </div>
         </div>
       </div>

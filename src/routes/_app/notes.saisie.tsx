@@ -106,15 +106,13 @@ function NotesSaisiePage() {
         .map((r) => ({
           inscriptionId: r.inscriptionId,
           matiereId: Number(selectedMatiereId),
+          anneeScolaireSemestreId: Number(selectedCalendarSemestreId),
           noteNormale: r.normale ? parseFloat(r.normale) : null,
           noteRattrapage: r.rattrapage ? parseFloat(r.rattrapage) : null,
           absenceInjustifiee: r.absent,
         }));
       if (notes.length === 0) throw new Error("Aucune note à enregistrer");
-      return notesApi.bulkUpsert({
-        anneeScolaireSemestreId: Number(selectedCalendarSemestreId),
-        notes,
-      });
+      return notesApi.bulkUpsert({ notes });
     },
     onSuccess: () => toast.success("Notes enregistrées"),
     onError: (e: any) => toast.error(e?.message ?? "Enregistrement impossible"),

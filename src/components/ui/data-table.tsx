@@ -27,8 +27,8 @@ export function TR({ children, className }: { children: ReactNode; className?: s
   return <tr className={cn("hover:bg-muted/40 border-border last:border-0 border-b", className)}>{children}</tr>;
 }
 
-export function TD({ children, className }: { children: ReactNode; className?: string }) {
-  return <td className={cn("px-4 py-3 text-foreground", className)}>{children}</td>;
+export function TD({ children, className, colSpan }: { children: ReactNode; className?: string; colSpan?: number }) {
+  return <td colSpan={colSpan} className={cn("px-4 py-3 text-foreground", className)}>{children}</td>;
 }
 
 export function Avatar({ name, className }: { name: unknown; className?: string }) {

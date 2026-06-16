@@ -184,10 +184,10 @@ export const notesApi = {
   update: (id: string | number, data: any) => api<any>(`/notes/${id}`, { method: "PUT", body: data }),
   remove: (id: string | number) => api<void>(`/notes/${id}`, { method: "DELETE" }),
   bulkUpsert: (data: {
-    anneeScolaireSemestreId: number;
     notes: Array<{
       inscriptionId: number;
       matiereId: number;
+      anneeScolaireSemestreId: number;
       noteNormale?: number | null;
       noteRattrapage?: number | null;
       absenceInjustifiee?: boolean;
@@ -195,13 +195,14 @@ export const notesApi = {
   }) => api<any>(`/notes/bulk-upsert`, { method: "POST", body: data }),
 };
 
+
 // ---------- Presences ----------
 export const presencesApi = {
   list: (params?: { anneeScolaireSemestreId?: number; page?: number; limit?: number }) =>
     api<any>(`/feuilles-presence`, { query: params }),
   createSheet: (data: {
     affectationCoursId: number;
-    anneeScolaireSemestreId: number;
+    semestreId: number;
     dateSeance: string;
     titreSeance?: string;
   }) => api<any>(`/feuilles-presence`, { method: "POST", body: data }),
