@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Plus, Eye, X } from "lucide-react";
-import { useState, useEffect } from "react";
+import { Plus, Eye, X, Printer, ArrowLeft } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/stat-card";
@@ -134,13 +134,273 @@ function NewSeanceModal({
   );
 }
 
+// ─── Imprimer Liste View ──────────────────────────────────────────────────────
+function ImprimerListeView({ affectations, onClose }: { affectations: any[]; onClose: () => void }) {
+  const printRef = useRef<HTMLDivElement>(null);
+  const [selectedGroupeId, setSelectedGroupeId] = useState("");
+  const [selectedAffectationId, setSelectedAffectationId] = useState("");
+
+  // Derive unique groupes from affectations
+  const groupes: { id: string | number; nom: string }[] = [];
+  const seenGroupes = new Set<string>();
+  for (const a of affectations) {
+    const gid = String(a.groupe?.id ?? a.groupeId ?? "");
+    const gnom = a.groupe?.nom ?? `Groupe ${gid}`;
+    if (gid && !seenGroupes.has(gid)) {
+      seenGroupes.add(gid);
+      groupes.push({ id: gid, nom: gnom });
+    }
+  }
+
+  // Matieres for selected groupe
+  const matiereOptions = affectations.filter(
+    (a) => String(a.groupe?.id ?? a.groupeId ?? "") === selectedGroupeId,
+  );
+
+  const selectedAffectation = affectations.find((a) => String(a.id) === selectedAffectationId);
+  const groupeId = selectedAffectation?.groupe?.id ?? selectedAffectation?.groupeId;
+
+  const { data: inscriptions = [], isLoading } = useQuery({
+    queryKey: ["inscriptions-by-group-print", groupeId],
+    queryFn: async () => {
+      if (!groupeId) return [];
+      const res = await inscriptionsApi.byGroup(groupeId) as any;
+      const list = res?.data?.data ?? res?.data ?? res ?? [];
+      return Array.isArray(list) ? list : [];
+    },
+    enabled: !!groupeId,
+  });
+
+  const matiereName =
+    selectedAffectation?.matiere?.intitule ??
+    selectedAffectation?.matiere?.code ??
+    "—";
+  const groupeName =
+    selectedAffectation?.groupe?.nom ?? "—";
+
+  const today = new Date().toLocaleDateString("fr-FR", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+  const handleGroupeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedGroupeId(e.target.value);
+    setSelectedAffectationId("");
+  };
+
+  const handlePrint = () => {
+    if (!printRef.current) return;
+    const printWindow = window.open("", "_blank", "width=900,height=700");
+    if (!printWindow) return;
+    printWindow.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
+      <title>Liste de présence — ${matiereName}</title>
+      <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: Arial, sans-serif; padding: 32px 40px; font-size: 12px; color: #000; }
+        .header { text-align: center; margin-bottom: 28px; }
+        .header h1 { font-size: 16px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+        .header p { font-size: 12px; color: #444; }
+        table { width: 100%; border-collapse: collapse; }
+        th { background: #f0f0f0; font-weight: bold; padding: 8px 10px; border: 1px solid #000; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.3px; }
+        td { border: 1px solid #000; padding: 6px 10px; font-size: 11px; vertical-align: middle; }
+        .col-num  { width: 5%;  text-align: center; }
+        .col-mat  { width: 14%; }
+        .col-nom  { width: 18%; }
+        .col-prenom { width: 18%; }
+        .col-cb   { width: 7%;  text-align: center; }
+        .col-sig  { width: 38%; }
+        td.row-num { text-align: center; color: #555; }
+        td.row-sig { height: 36px; }
+        td.row-cb  { text-align: center; }
+        .cb-box { display: inline-block; width: 14px; height: 14px; border: 1.5px solid #000; }
+        tr:nth-child(even) td { background: #fafafa; }
+        @media print {
+          body { padding: 20px 28px; }
+          tr:nth-child(even) td { background: #fafafa !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          th { background: #f0f0f0 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
+      </style>
+    </head><body>`);
+    printWindow.document.write(printRef.current.innerHTML);
+    printWindow.document.write("</body></html>");
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => { printWindow.print(); printWindow.close(); }, 400);
+  };
+
+  const students: { id: any; matricule: string; nom: string; prenom: string }[] =
+    (inscriptions as any[]).map((ins) => ({
+      id: ins.id,
+      matricule: ins.etudiant?.matricule ?? ins.matricule ?? "",
+      nom: ins.etudiant?.nom ?? ins.nom ?? "",
+      prenom: ins.etudiant?.prenom ?? ins.prenom ?? "",
+    }));
+
+  const canPrint = !!selectedAffectationId && students.length > 0;
+
+  return (
+    <>
+      {/* Top bar */}
+      <div className="flex items-center gap-3 mb-6">
+        <button
+          onClick={onClose}
+          className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground text-sm transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" /> Retour
+        </button>
+        <span className="text-muted-foreground">/</span>
+        <span className="font-semibold text-sm">Imprimer liste de présence</span>
+      </div>
+
+      {/* Filters */}
+      <div className="bg-card border border-border rounded-xl p-5 mb-6 shadow-sm">
+        <h2 className="font-semibold mb-4 text-sm">Sélectionner le groupe et la matière</h2>
+        <div className="flex flex-wrap gap-4">
+          <div className="flex-1 min-w-[200px]">
+            <label className="block text-xs font-medium text-muted-foreground mb-1">Groupe *</label>
+            <select
+              className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-background"
+              value={selectedGroupeId}
+              onChange={handleGroupeChange}
+            >
+              <option value="">Sélectionner un groupe</option>
+              {groupes.map((g) => (
+                <option key={g.id} value={String(g.id)}>{g.nom}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex-1 min-w-[200px]">
+            <label className="block text-xs font-medium text-muted-foreground mb-1">Matière *</label>
+            <select
+              className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-background"
+              value={selectedAffectationId}
+              onChange={(e) => setSelectedAffectationId(e.target.value)}
+              disabled={!selectedGroupeId}
+            >
+              <option value="">Sélectionner une matière</option>
+              {matiereOptions.map((a) => (
+                <option key={a.id} value={String(a.id)}>
+                  {a.matiere?.intitule ?? a.matiere?.code ?? `Matière ${a.matiereId}`}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-end">
+            <button
+              onClick={handlePrint}
+              disabled={!canPrint}
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Printer className="w-4 h-4" />
+              Imprimer
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Preview table */}
+      {selectedAffectationId && (
+        <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
+          <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+            <div>
+              <p className="font-semibold text-sm">
+                Liste de présence — {matiereName}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {groupeName} · {today}
+              </p>
+            </div>
+            {isLoading && (
+              <span className="text-xs text-muted-foreground animate-pulse">Chargement…</span>
+            )}
+            {!isLoading && (
+              <span className="text-xs text-muted-foreground">{students.length} étudiant{students.length !== 1 ? "s" : ""}</span>
+            )}
+          </div>
+
+          {!isLoading && students.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-muted/40 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                    <th className="w-10 px-4 py-3 text-center border-b border-border">#</th>
+                    <th className="px-4 py-3 text-left border-b border-border">Matricule</th>
+                    <th className="px-4 py-3 text-left border-b border-border">Nom</th>
+                    <th className="px-4 py-3 text-left border-b border-border">Prénom</th>
+                    <th className="w-12 px-4 py-3 text-center border-b border-border" title="Case de présence">☑</th>
+                    <th className="px-4 py-3 text-left border-b border-border">Signature</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {students.map((s, i) => (
+                    <tr key={s.id} className="border-b border-border last:border-0 hover:bg-muted/20">
+                      <td className="px-4 py-3 text-center text-muted-foreground text-xs">{i + 1}</td>
+                      <td className="px-4 py-3 font-mono text-xs">{s.matricule}</td>
+                      <td className="px-4 py-3 font-medium">{s.nom}</td>
+                      <td className="px-4 py-3">{s.prenom}</td>
+                      <td className="px-4 py-3 text-center">
+                        <span className="inline-block w-4 h-4 border-2 border-muted-foreground rounded-sm" />
+                      </td>
+                      <td className="px-4 py-3" />
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {!isLoading && students.length === 0 && selectedAffectationId && (
+            <div className="px-5 py-10 text-center text-muted-foreground text-sm">
+              Aucun étudiant inscrit dans ce groupe.
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Hidden print-ready template */}
+      <div ref={printRef} style={{ display: "none" }}>
+        <div className="header">
+          <h1>Liste de présence — {matiereName}</h1>
+          <p>Groupe : {groupeName} &nbsp;·&nbsp; Le {today}</p>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th className="col-num">#</th>
+              <th className="col-mat">Matricule</th>
+              <th className="col-nom">Nom</th>
+              <th className="col-prenom">Prénom</th>
+              <th className="col-cb">Présence</th>
+              <th className="col-sig">Signature</th>
+            </tr>
+          </thead>
+          <tbody>
+            {students.map((s, i) => (
+              <tr key={s.id}>
+                <td className="row-num">{i + 1}</td>
+                <td>{s.matricule}</td>
+                <td>{s.nom}</td>
+                <td>{s.prenom}</td>
+                <td className="row-cb"><span className="cb-box" /></td>
+                <td className="row-sig" />
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
 export const Route = createFileRoute("/_app/presences")({
   head: () => ({ meta: [{ title: "Présences — UniPlus" }] }),
   component: PresencesPage,
 });
 
 function PresencesPage() {
-  const [view, setView] = useState<"list" | "saisie">("list");
+  const [view, setView] = useState<"list" | "saisie" | "imprimer">("list");
   const [showNewModal, setShowNewModal] = useState(false);
   const [currentSeance, setCurrentSeance] = useState<any>(null);
   const [filterCalendarSemestreId, setFilterCalendarSemestreId] = useState("");
@@ -189,87 +449,102 @@ function PresencesPage() {
     setView("saisie");
   };
 
+  if (view === "saisie" && currentSeance) {
+    return (
+      <SaisiePresence
+        seance={currentSeance}
+        onClose={() => { setView("list"); setCurrentSeance(null); }}
+      />
+    );
+  }
+
+  if (view === "imprimer") {
+    return (
+      <ImprimerListeView
+        affectations={affectations as any[]}
+        onClose={() => setView("list")}
+      />
+    );
+  }
+
   return (
     <>
-      <div>
-        <PageHeader
-          title="Feuilles de présence"
-          subtitle={view === "list" ? `${feuilles.length} feuilles` : "Saisie de présence"}
-          actions={
-            view === "list" ? (
-              <Button onClick={openNewSeance}>
-                <Plus className="w-4 h-4" /> Nouvelle séance
-              </Button>
-            ) : (
-              <Button variant="secondary" onClick={() => setView("list")}>Retour à la liste</Button>
-            )
-          }
-        />
+      <PageHeader
+        title="Présences"
+        subtitle="Gestion des feuilles de présence"
+        actions={
+          <div className="flex gap-2">
+            <Button variant="secondary" size="sm" onClick={() => setView("imprimer")}>
+              <Printer className="w-4 h-4 mr-1" /> Imprimer liste
+            </Button>
+            <Button size="sm" onClick={openNewSeance}>
+              <Plus className="w-4 h-4 mr-1" /> Nouvelle séance
+            </Button>
+          </div>
+        }
+      />
 
-        <ApiStatusBanner show={isError} />
+      <FilterBar>
+        <SelectInput
+          label="Semestre"
+          value={filterCalendarSemestreId}
+          onChange={(e) => setFilterCalendarSemestreId(e.target.value)}
+        >
+          <option value="">Tous les semestres</option>
+          {(calendarSemestres as AnneeScolaireSemestre[]).map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.semestre?.code ?? `S${s.semestre?.numero}`}
+            </option>
+          ))}
+        </SelectInput>
+      </FilterBar>
 
-        {view === "list" ? (
-          <>
-            <FilterBar>
-              <SelectInput title="Filtrer par semestre calendaire" value={filterCalendarSemestreId} onChange={setFilterCalendarSemestreId}>
-                <option value="">Tous les semestres</option>
-                {calendarSemestres.map((s) => (
-                  <option key={s.id} value={String(s.id)}>{s.semestre?.code ?? `S${s.semestre?.numero}`}</option>
-                ))}
-              </SelectInput>
-            </FilterBar>
+      <ApiStatusBanner isLoading={isLoading} isError={isError} />
 
-            <DataTable>
-              <THead>
-                <TR>
-                  <TH>#</TH>
-                  <TH>Matière</TH>
-                  <TH>Groupe</TH>
-                  <TH>Date</TH>
-                  <TH>Titre</TH>
-                  <TH className="text-right">Actions</TH>
-                </TR>
-              </THead>
-              <tbody>
-                {isLoading ? (
-                  <TR><TD colSpan={6} className="py-8 text-center text-muted-foreground">Chargement…</TD></TR>
-                ) : (feuilles as any[]).length === 0 ? (
-                  <TR><TD colSpan={6} className="py-8 text-center text-muted-foreground">Aucune feuille de présence</TD></TR>
-                ) : (feuilles as any[]).map((f: any) => (
-                  <TR key={f.id}>
-                    <TD className="text-muted-foreground">{f.id}</TD>
-                    <TD className="font-medium">{f.affectationCours?.matiere?.intitule ?? f.titreSeance ?? "—"}</TD>
-                    <TD className="font-mono">{f.affectationCours?.groupe?.nom ?? "—"}</TD>
-                    <TD className="text-muted-foreground">{f.dateSeance?.slice?.(0, 10) ?? f.date ?? "—"}</TD>
-                    <TD>{f.titreSeance ?? "—"}</TD>
-                    <TD>
-                      <ActionButton onClick={() => openSaisie(f)} title="Voir / Saisir présences">
-                        <Eye className="w-4 h-4" />
-                      </ActionButton>
-                    </TD>
-                  </TR>
-                ))}
-              </tbody>
-            </DataTable>
-          </>
-        ) : (
-          <SaisiePresence seance={currentSeance} onClose={() => setView("list")} />
-        )}
-      </div>
+      <DataTable>
+        <THead>
+          <TR>
+            <TH>Matière</TH>
+            <TH>Groupe</TH>
+            <TH>Enseignant</TH>
+            <TH>Date</TH>
+            <TH>Titre</TH>
+            <TH>Actions</TH>
+          </TR>
+        </THead>
+        <tbody>
+          {(feuilles as any[]).map((f) => (
+            <TR key={f.id}>
+              <TD>{f.affectationCours?.matiere?.intitule ?? "—"}</TD>
+              <TD>{f.affectationCours?.groupe?.nom ?? "—"}</TD>
+              <TD>{f.affectationCours?.enseignant ? `${f.affectationCours.enseignant.nom} ${f.affectationCours.enseignant.prenom}` : "—"}</TD>
+              <TD>{f.dateSeance?.slice(0, 10) ?? "—"}</TD>
+              <TD>{f.titreSeance ?? "—"}</TD>
+              <TD>
+                <ActionButton onClick={() => openSaisie(f)} title="Saisir les présences">
+                  <Eye className="w-4 h-4" />
+                </ActionButton>
+              </TD>
+            </TR>
+          ))}
+        </tbody>
+      </DataTable>
 
       <NewSeanceModal
         isOpen={showNewModal}
         onClose={() => setShowNewModal(false)}
         affectations={affectations as any[]}
-        calendarSemestres={calendarSemestres}
-        onCreated={() => refetch()}
+        calendarSemestres={calendarSemestres as AnneeScolaireSemestre[]}
+        onCreated={refetch}
       />
     </>
   );
 }
 
+// ─── Saisie Presence ─────────────────────────────────────────────────────────
 function SaisiePresence({ seance, onClose }: { seance: any; onClose: () => void }) {
   const [rows, setRows] = useState<EtudiantPresenceRow[]>([]);
+  const printRef = useRef<HTMLDivElement>(null);
 
   const { data: inscriptions = [] } = useQuery({
     queryKey: ["inscriptions-by-group", seance?.affectationCours?.groupeId],
@@ -327,6 +602,22 @@ function SaisiePresence({ seance, onClose }: { seance: any; onClose: () => void 
 
   const count = (s: StatutPresence) => rows.filter((r) => r.statut === s).length;
 
+  const handlePrint = () => {
+    if (printRef.current) {
+      const printWindow = window.open("", "", "height=auto,width=auto");
+      if (printWindow) {
+        printWindow.document.write(printRef.current.innerHTML);
+        printWindow.document.close();
+        printWindow.print();
+      }
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString("fr-FR", { year: "numeric", month: "long", day: "numeric" });
+  };
+
   const styles: Record<StatutPresence, string> = {
     present: "bg-emerald-100 text-emerald-700",
     absent: "bg-red-100 text-red-700",
@@ -334,16 +625,22 @@ function SaisiePresence({ seance, onClose }: { seance: any; onClose: () => void 
     justifie: "bg-blue-100 text-blue-700",
   };
 
+  const matiereName = seance?.affectationCours?.matiere?.intitule || seance?.titreSeance || "—";
+  const today = new Date().toLocaleDateString("fr-FR", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+
   return (
     <>
       <div className="bg-card shadow-sm mb-4 p-4 border border-border rounded-xl">
         <div className="flex flex-wrap items-center gap-4 text-sm">
-          <div><span className="text-muted-foreground">Matière :</span> <strong>{seance?.affectationCours?.matiere?.intitule || seance?.titreSeance || "—"}</strong></div>
+          <div><span className="text-muted-foreground">Matière :</span> <strong>{matiereName}</strong></div>
           <div><span className="text-muted-foreground">Groupe :</span> <strong>{seance?.affectationCours?.groupe?.nom || "—"}</strong></div>
           <div><span className="text-muted-foreground">Date :</span> <strong>{seance?.dateSeance?.slice(0, 10) || "—"}</strong></div>
           <div className="flex gap-2 ml-auto">
             <Button variant="secondary" size="sm" onClick={() => setRows(p => p.map(r => ({ ...r, statut: "present" })))}>Tous présents</Button>
             <Button variant="secondary" size="sm" onClick={() => setRows(p => p.map(r => ({ ...r, statut: "absent" })))}>Tous absents</Button>
+            <Button variant="secondary" size="sm" onClick={handlePrint} title="Imprimer la liste de présence">
+              <Printer className="w-4 h-4" /> Imprimer
+            </Button>
             <Button size="sm" onClick={() => save.mutate()} disabled={save.isPending}>
               {save.isPending ? "Enregistrement…" : "Enregistrer"}
             </Button>
@@ -396,6 +693,59 @@ function SaisiePresence({ seance, onClose }: { seance: any; onClose: () => void 
           ))}
         </tbody>
       </DataTable>
+
+      {/* Hidden print template */}
+      <div ref={printRef} style={{ display: "none" }}>
+        <style>{`
+          * { box-sizing: border-box; margin: 0; padding: 0; }
+          body { font-family: Arial, sans-serif; padding: 32px 40px; font-size: 12px; color: #000; }
+          .header { text-align: center; margin-bottom: 28px; }
+          .header h1 { font-size: 16px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+          .header p { font-size: 12px; color: #444; }
+          table { width: 100%; border-collapse: collapse; }
+          th { background: #f0f0f0; font-weight: bold; padding: 8px 10px; border: 1px solid #000; text-align: left; font-size: 11px; text-transform: uppercase; }
+          td { border: 1px solid #000; padding: 6px 10px; font-size: 11px; vertical-align: middle; }
+          .col-num { width: 5%; text-align: center; }
+          .col-mat { width: 14%; }
+          .col-nom { width: 18%; }
+          .col-prenom { width: 18%; }
+          .col-cb { width: 7%; text-align: center; }
+          .col-sig { width: 38%; }
+          td.row-num { text-align: center; color: #555; }
+          td.row-sig { height: 36px; }
+          td.row-cb { text-align: center; }
+          .cb-box { display: inline-block; width: 14px; height: 14px; border: 1.5px solid #000; }
+          tr:nth-child(even) td { background: #fafafa; }
+        `}</style>
+        <div className="header">
+          <h1>Liste de présence — {matiereName}</h1>
+          <p>Groupe : {seance?.affectationCours?.groupe?.nom || "—"} &nbsp;·&nbsp; Le {today}</p>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th className="col-num">#</th>
+              <th className="col-mat">Matricule</th>
+              <th className="col-nom">Nom</th>
+              <th className="col-prenom">Prénom</th>
+              <th className="col-cb">Présence</th>
+              <th className="col-sig">Signature</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={r.id}>
+                <td className="row-num">{i + 1}</td>
+                <td>{r.matricule}</td>
+                <td>{r.nom}</td>
+                <td>{r.prenom}</td>
+                <td className="row-cb"><span className="cb-box" /></td>
+                <td className="row-sig" />
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </>
   );
 }
