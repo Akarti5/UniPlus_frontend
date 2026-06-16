@@ -251,9 +251,9 @@ function EtudiantDetailPage() {
     }
   }, [id]);
 
-  const myNotes  = notes.filter((n) => n.matricule === etudiant.matricule);
-  const myStages = stages.filter((s) => s.matricule === etudiant.matricule);
-  const myRes    = resultatsSemestre.filter((r) => r.matricule === etudiant.matricule);
+  const myNotes  = etudiant ? notes.filter((n) => n.matricule === etudiant.matricule) : [];
+  const myStages = etudiant ? stages.filter((s) => s.matricule === etudiant.matricule) : [];
+  const myRes    = etudiant ? resultatsSemestre.filter((r) => r.matricule === etudiant.matricule) : [];
 
   const handleSave = async (data: EditData) => {
     if (!etudiant) return;
