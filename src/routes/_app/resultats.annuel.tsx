@@ -17,9 +17,9 @@ interface ResultatAnnuel {
   matricule: string;
   etudiant: string;
   groupe: string;
-  moyenneTheorique: number;
-  moyennePratique: number;
-  moyenneFinal: number;
+  moyenneTheorique: number | null;
+  moyennePratique: number | null;
+  moyenneFinal: number | null;
   decision: string;
 }
 
@@ -53,22 +53,49 @@ function ResultatsAnnuelPage() {
     },
   });
 
+  // Resolve the active annee id (selected or the one marked actif)
+  const resolvedAnneeId = selectedAnneeId || (annees as any[]).find((a: any) => a.actif)?.id;
+
+  // Fetch bulletin for every inscription to get computed averages
+  const { refetch: refetchBulletins, data: bulletins = {} } = useQuery({
+    queryKey: ["bulletins-annuels", resolvedAnneeId, (inscriptions as any[]).length],
+    enabled: !!resolvedAnneeId && (inscriptions as any[]).length > 0,
+    queryFn: async () => {
+      const map: Record<string | number, any> = {};
+      await Promise.allSettled(
+        (inscriptions as any[]).map(async (ins: any) => {
+          try {
+            const res = await reportsApi.bulletinAnnuel(ins.id, resolvedAnneeId) as any;
+            const d = res?.data?.data ?? res?.data ?? res;
+            map[ins.id] = d;
+          } catch {
+            // leave undefined — averages will show "—"
+          }
+        }),
+      );
+      return map;
+    },
+  });
+
   const rows: ResultatAnnuel[] = (inscriptions as any[])
-    .filter((ins) => {
+    .filter((ins: any) => {
       if (selectedGroupeId && String(ins.groupeId ?? ins.groupe?.id) !== selectedGroupeId) return false;
       if (selectedAnneeId && String(ins.anneeScolaireId ?? ins.anneeScolaire?.id) !== selectedAnneeId) return false;
       return true;
     })
-    .map((ins) => ({
-      id: ins.id,
-      matricule: ins.etudiant?.matricule ?? "",
-      etudiant: [ins.etudiant?.prenom, ins.etudiant?.nom].filter(Boolean).join(" "),
-      groupe: ins.groupe?.nom ?? "",
-      moyenneTheorique: ins.moyenneTheorique ?? 0,
-      moyennePratique: ins.moyennePratique ?? 0,
-      moyenneFinal: ins.moyenneFinale ?? 0,
-      decision: ins.statusAnnee ?? ins.statut ?? "en_attente",
-    }));
+    .map((ins: any) => {
+      const b = (bulletins as any)[ins.id]; // enriched bulletin data
+      return {
+        id: ins.id,
+        matricule: ins.etudiant?.matricule ?? b?.etudiant?.matricule ?? "",
+        etudiant: [ins.etudiant?.prenom ?? b?.etudiant?.prenom, ins.etudiant?.nom ?? b?.etudiant?.nom].filter(Boolean).join(" "),
+        groupe: ins.groupe?.nom ?? ins.groupe ?? b?.groupe ?? "",
+        moyenneTheorique: b?.theoriqueAverage != null ? Number(b.theoriqueAverage) : null,
+        moyennePratique: b?.practicalAverage != null ? Number(b.practicalAverage) : null,
+        moyenneFinal: b?.finalAverage != null ? Number(b.finalAverage) : null,
+        decision: b?.decision ?? ins.decision ?? ins.statut ?? "en_attente",
+      };
+    });
 
   const c = (decision: string) => rows.filter((r) => r.decision === decision).length;
 
@@ -80,32 +107,35 @@ function ResultatsAnnuelPage() {
     { label: "En attente", value: c("en_attente"), color: "bg-slate-100 text-slate-700" },
   ];
 
+  const refetchAll = () => {
+    refetch();
+    refetchBulletins();
+  };
+
   const calculerUn = useMutation({
     mutationFn: async (inscriptionId: number | string) => {
-      const anneeId = selectedAnneeId || (annees as any[]).find((a) => a.actif)?.id;
-      if (!anneeId) throw new Error("Sélectionnez une année scolaire");
-      await inscriptionsApi.annualResult(inscriptionId, anneeId);
-      const bulletin = await reportsApi.bulletinAnnuel(inscriptionId, anneeId) as any;
+      if (!resolvedAnneeId) throw new Error("Sélectionnez une année scolaire");
+      await inscriptionsApi.annualResult(inscriptionId, resolvedAnneeId);
+      const bulletin = await reportsApi.bulletinAnnuel(inscriptionId, resolvedAnneeId) as any;
       return bulletin?.data ?? bulletin;
     },
     onSuccess: () => {
       toast.success("Résultats annuels calculés");
-      refetch();
+      refetchAll();
     },
     onError: (e: any) => toast.error(e?.message ?? "Erreur lors du calcul"),
   });
 
   const calculerTout = useMutation({
     mutationFn: async () => {
-      const anneeId = selectedAnneeId || (annees as any[]).find((a) => a.actif)?.id;
-      if (!anneeId) throw new Error("Sélectionnez une année scolaire");
+      if (!resolvedAnneeId) throw new Error("Sélectionnez une année scolaire");
       for (const r of rows) {
-        await inscriptionsApi.annualResult(r.id, anneeId);
+        await inscriptionsApi.annualResult(r.id, resolvedAnneeId);
       }
     },
     onSuccess: () => {
       toast.success("Tous les résultats annuels ont été recalculés");
-      refetch();
+      refetchAll();
     },
     onError: (e: any) => toast.error(e?.message ?? "Erreur lors du calcul global"),
   });
@@ -139,14 +169,14 @@ function ResultatsAnnuelPage() {
       <FilterBar>
         <SelectInput value={selectedGroupeId} onChange={setSelectedGroupeId} title="Filtrer par groupe">
           <option value="">Tous les groupes</option>
-          {(groupes as any[]).map((g) => (
+          {(groupes as any[]).map((g: any) => (
             <option key={g.id} value={String(g.id)}>{g.nom}</option>
           ))}
         </SelectInput>
 
         <SelectInput value={selectedAnneeId} onChange={setSelectedAnneeId} title="Filtrer par année">
           <option value="">Toutes les années</option>
-          {(annees as any[]).map((a) => (
+          {(annees as any[]).map((a: any) => (
             <option key={a.id} value={String(a.id)}>{a.label}</option>
           ))}
         </SelectInput>
@@ -173,10 +203,10 @@ function ResultatsAnnuelPage() {
               <TD className="font-mono text-xs">{r.matricule}</TD>
               <TD className="font-medium">{r.etudiant}</TD>
               <TD>{r.groupe || "—"}</TD>
-              <TD>{r.moyenneTheorique ? r.moyenneTheorique.toFixed(2) : "—"}</TD>
-              <TD>{r.moyennePratique ? r.moyennePratique.toFixed(2) : "—"}</TD>
-              <TD className={r.moyenneFinal >= 10 ? "font-bold text-emerald-600" : "font-bold text-danger"}>
-                {r.moyenneFinal ? `${r.moyenneFinal.toFixed(2)}/20` : "—"}
+              <TD>{r.moyenneTheorique != null ? r.moyenneTheorique.toFixed(2) : "—"}</TD>
+              <TD>{r.moyennePratique != null ? r.moyennePratique.toFixed(2) : "—"}</TD>
+              <TD className={r.moyenneFinal != null && r.moyenneFinal >= 10 ? "font-bold text-emerald-600" : "font-bold text-danger"}>
+                {r.moyenneFinal != null ? `${r.moyenneFinal.toFixed(2)}/20` : "—"}
               </TD>
               <TD><StatusBadge status={r.decision} /></TD>
               <TD>
