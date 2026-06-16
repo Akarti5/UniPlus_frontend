@@ -210,19 +210,43 @@ function FormModal({
               </select>
             </Field>
 
-            <Field label="Type de diplôme" htmlFor="filiere-diplome">
-              <select
-                id="filiere-diplome"
-                value={form.typeDiplome}
-                onChange={(e) => setForm((f) => ({ ...f, typeDiplome: e.target.value }))}
-                title="Type de diplôme"
-                className={inputCls}
-              >
-                <option value="">Sélectionner...</option>
-                <option value="L">Licence</option>
-                <option value="M">Master</option>
-              
-              </select>
+            <Field label="Types de diplôme" htmlFor="filiere-diplome">
+              <div className="flex gap-4 mt-1">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={(form.typeDiplome || "").includes("L")}
+                    onChange={(e) => {
+                      let current = (form.typeDiplome || "").split(",").map(s => s.trim()).filter(Boolean);
+                      if (e.target.checked) {
+                        if (!current.includes("L")) current.push("L");
+                      } else {
+                        current = current.filter(x => x !== "L");
+                      }
+                      setForm(f => ({ ...f, typeDiplome: current.join(",") }));
+                    }}
+                    className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
+                  />
+                  <span className="text-sm text-gray-700 dark:text-gray-300">Licence</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={(form.typeDiplome || "").includes("M")}
+                    onChange={(e) => {
+                      let current = (form.typeDiplome || "").split(",").map(s => s.trim()).filter(Boolean);
+                      if (e.target.checked) {
+                        if (!current.includes("M")) current.push("M");
+                      } else {
+                        current = current.filter(x => x !== "M");
+                      }
+                      setForm(f => ({ ...f, typeDiplome: current.join(",") }));
+                    }}
+                    className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
+                  />
+                  <span className="text-sm text-gray-700 dark:text-gray-300">Master</span>
+                </label>
+              </div>
             </Field>
 
             <div className="gap-4 grid grid-cols-2">
@@ -471,7 +495,11 @@ function FilieresPage() {
                 <TD>{f.nom}</TD>
                 <TD>{getDeptName(f)}</TD>
                 <TD>
-                  <StatusBadge status={f.typeDiplome} />
+                  <div className="flex gap-1 flex-wrap">
+                    {(f.typeDiplome || "").split(",").map(d => d.trim()).filter(Boolean).map(d => (
+                      <StatusBadge key={d} status={d} />
+                    ))}
+                  </div>
                 </TD>
                 <TD>{f.dureeAnnees} ans</TD>
                 <TD>{f.nbGroupes}</TD>
