@@ -35,7 +35,7 @@ const sections: Section[] = [
   { title: "Évaluation", items: [
     { to: "/notes", label: "Notes", icon: Hash },
     { to: "/presences", label: "Présences", icon: CheckSquare },
-    { to: "/stages", label: "Stages", icon: Briefcase },
+    // { to: "/stages", label: "Stages", icon: Briefcase },
   ]},
   { title: "Résultats", items: [
     { to: "/resultats/semestre", label: "Résultats semestre", icon: BarChart3 },

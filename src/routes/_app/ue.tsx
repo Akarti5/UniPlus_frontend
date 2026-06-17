@@ -385,6 +385,15 @@ function UePage() {
   const [formInitial, setFormInitial] = useState<Partial<Ue> | undefined>();
   const [deleteTarget, setDeleteTarget] = useState<Ue | null>(null);
 
+  const [filterFiliere, setFilterFiliere] = useState("");
+  const [filterNiveau, setFilterNiveau] = useState("");
+
+  const filteredData = (data as Ue[]).filter((u) => {
+    if (filterFiliere && getFiliereName(u.filiere) !== filterFiliere) return false;
+    if (filterNiveau && (u.niveauCode ?? u.semestre ?? "") !== filterNiveau) return false;
+    return true;
+  });
+
   const add = useMutation({
     mutationFn: (payload: FormData) => {
       // POST expects: filiereId, niveauCode, code, intitule, creditsEcts, typeUe
@@ -450,7 +459,7 @@ function UePage() {
       <div>
         <PageHeader
           title="Unités d'enseignement (UE)"
-          subtitle={`${(data as any[]).length} unité${(data as any[]).length !== 1 ? "s" : ""}`}
+          subtitle={`${filteredData.length} unité${filteredData.length !== 1 ? "s" : ""}${filteredData.length !== (data as any[]).length ? ` sur ${(data as any[]).length}` : ""}`}
           actions={
             <Button onClick={openAdd}>
               <Plus className="w-4 h-4" aria-hidden="true" /> Nouvelle UE
@@ -459,18 +468,26 @@ function UePage() {
         />
 
         <FilterBar>
-          <SelectInput>
-            <option>Toutes les filières</option>
+          <select
+            value={filterFiliere}
+            onChange={(e) => setFilterFiliere(e.target.value)}
+            className={inputCls}
+          >
+            <option value="">Toutes les filières</option>
             {filieres.map((f) => (
-              <option key={f.id}>{f.nom}</option>
+              <option key={f.id} value={f.nom}>{f.nom}</option>
             ))}
-          </SelectInput>
-          <SelectInput>
+          </select>
+          <select
+            value={filterNiveau}
+            onChange={(e) => setFilterNiveau(e.target.value)}
+            className={inputCls}
+          >
             <option value="">Tous les niveaux</option>
             {NIVEAU_CODES.map((n) => (
               <option key={n} value={n}>{n}</option>
             ))}
-          </SelectInput>
+          </select>
         </FilterBar>
 
         <ApiStatusBanner show={isFallback} />
@@ -490,7 +507,7 @@ function UePage() {
             </TR>
           </THead>
           <tbody>
-            {(data as Ue[]).map((u) => (
+            {filteredData.map((u) => (
               <TR key={u.id}>
                 <TD className="text-muted-foreground">{u.id}</TD>
                 <TD>

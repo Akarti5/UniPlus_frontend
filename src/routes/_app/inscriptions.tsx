@@ -203,7 +203,7 @@ function FormModal({ isOpen, mode, initial, onSave, onCancel, isSaving, groupes,
 
   useEffect(() => {
     if (isOpen && initial) {
-      const matchedGroupe = (groupesData as any[]).find((g) => g.id === (initial.groupe as any)?.id);
+      const matchedGroupe = groupes.find((g: any) => g.id === (initial.groupe as any)?.id);
       setForm({
         etudiant: getEtudiantName(initial.etudiant),
         matricule: getMatricule(initial),
@@ -422,6 +422,8 @@ export const Route = createFileRoute("/_app/inscriptions")({
 function InscriptionsPage() {
   const [q, setQ] = useState("");
   const [statut, setStatut] = useState("");
+  const [filterAnnee, setFilterAnnee] = useState("");
+  const [filterGroupe, setFilterGroupe] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<"add" | "edit">("add");
   const [formInitial, setFormInitial] = useState<Partial<Inscription> | undefined>();
@@ -439,9 +441,12 @@ function InscriptionsPage() {
   const filteredData = (data as Inscription[]).filter((i) => {
     const name = getEtudiantName(i.etudiant);
     const matricule = getMatricule(i);
+    const anneeLabel = getRelationLabel((i as any).anneeScolaire ?? (i as any).annee, "label") || getRelationLabel((i as any).anneeScolaire ?? (i as any).annee, "nom");
     return (
       (!q || `${name} ${matricule}`.toLowerCase().includes(q.toLowerCase())) &&
-      (!statut || i.statut === statut)
+      (!statut || i.statut === statut) &&
+      (!filterAnnee || anneeLabel === filterAnnee) &&
+      (!filterGroupe || getRelationLabel(i.groupe) === filterGroupe)
     );
   });
 
@@ -504,6 +509,14 @@ function InscriptionsPage() {
   const del = useMutation({
     mutationFn: (id: Inscription["id"]) => inscriptionsApi.remove?.(id) ?? Promise.resolve(id),
     onSuccess: () => { toast.success("Inscription supprimée avec succès !"); qc.invalidateQueries({ queryKey: ["inscriptions"] }); refetch(); setDeleteTarget(null); },
+    onError: (e: any) => {
+      const msg: string = e?.message ?? "";
+      if (msg.includes("23001") || msg.includes("notes_inscription_id_fkey") || msg.includes("foreign key")) {
+        toast.error("Impossible de supprimer : des notes sont liées à cette inscription. Supprimez d'abord les notes associées.");
+      } else {
+        toast.error(msg || "Suppression impossible");
+      }
+    },
   });
 
   const openAdd = () => { setFormMode("add"); setFormInitial(undefined); setFormOpen(true); };
@@ -527,21 +540,33 @@ function InscriptionsPage() {
 
         <FilterBar>
           <SearchInput placeholder="Matricule ou nom..." value={q} onChange={setQ} />
-          <SelectInput>
-            <option>Toutes les années</option>
-            {anneesData.map((a: any) => <option key={a.id}>{a.label}</option>)}
-          </SelectInput>
-          <SelectInput>
-            <option>Tous les groupes</option>
-            {groupesData.map((g: any) => <option key={g.id}>{g.nom}</option>)}
-          </SelectInput>
-          <SelectInput value={statut} onChange={(value) => setStatut(value)}>
+          <select
+            value={filterAnnee}
+            onChange={(e) => setFilterAnnee(e.target.value)}
+            className={inputCls}
+          >
+            <option value="">Toutes les années</option>
+            {(anneesData as any[]).map((a: any) => <option key={a.id} value={a.label}>{a.label}</option>)}
+          </select>
+          <select
+            value={filterGroupe}
+            onChange={(e) => setFilterGroupe(e.target.value)}
+            className={inputCls}
+          >
+            <option value="">Tous les groupes</option>
+            {(groupesData as any[]).map((g: any) => <option key={g.id} value={g.nom}>{g.nom}</option>)}
+          </select>
+          <select
+            value={statut}
+            onChange={(e) => setStatut(e.target.value)}
+            className={inputCls}
+          >
             <option value="">Tous statuts</option>
             <option value="actif">Actif</option>
             <option value="redoublant">Redoublant</option>
             <option value="exclu">Exclu</option>
             <option value="diplome">Diplômé</option>
-          </SelectInput>
+          </select>
         </FilterBar>
 
         <DataTable>

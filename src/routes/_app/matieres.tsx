@@ -404,6 +404,13 @@ function MatieresPage() {
   const [formInitial, setFormInitial] = useState<Partial<Matiere> | undefined>();
   const [deleteTarget, setDeleteTarget] = useState<Matiere | null>(null);
 
+  const [filterUe, setFilterUe] = useState("");
+
+  const filteredData = (data as Matiere[]).filter((m) => {
+    if (filterUe && getUeLabel(m.ue) !== filterUe) return false;
+    return true;
+  });
+
   const add = useMutation({
     mutationFn: (payload: FormData) => {
       const selectedUe = ues.find((u) => u.code === payload.ue);
@@ -500,7 +507,7 @@ function MatieresPage() {
       <div>
         <PageHeader
           title="Matières"
-          subtitle={`${(data as any[]).length} matière${(data as any[]).length !== 1 ? "s" : ""}`}
+          subtitle={`${filteredData.length} matière${filteredData.length !== 1 ? "s" : ""}${filteredData.length !== (data as any[]).length ? ` sur ${(data as any[]).length}` : ""}`}
           actions={
             <Button onClick={openAdd}>
               <Plus className="w-4 h-4" aria-hidden="true" /> Nouvelle matière
@@ -509,12 +516,16 @@ function MatieresPage() {
         />
 
         <FilterBar>
-          <SelectInput>
-            <option>Toutes les UE</option>
+          <select
+            value={filterUe}
+            onChange={(e) => setFilterUe(e.target.value)}
+            className={inputCls}
+          >
+            <option value="">Toutes les UE</option>
             {ues.map((u) => (
-              <option key={u.id}>{u.code}</option>
+              <option key={u.id} value={u.code}>{u.code} — {u.intitule}</option>
             ))}
-          </SelectInput>
+          </select>
         </FilterBar>
 
         <ApiStatusBanner show={isFallback} />
@@ -533,7 +544,7 @@ function MatieresPage() {
             </TR>
           </THead>
           <tbody>
-            {(data as Matiere[]).map((m) => (
+            {filteredData.map((m) => (
               <TR key={m.id}>
                 <TD className="text-muted-foreground">{m.id}</TD>
                 <TD>
