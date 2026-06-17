@@ -1,4 +1,4 @@
-![Screenshot](screenshot.png)
+![Screenshot](Screenshot.png)
 
 Uniplus is an University management LMD systeme frontend 
 
